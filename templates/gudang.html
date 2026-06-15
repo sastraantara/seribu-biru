@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Warehouse Management</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-light pb-5">
+
+<nav class="navbar navbar-dark bg-dark mb-4 shadow">
+    <div class="container">
+        <span class="navbar-brand mb-0 h1">📦 Warehouse Management (Inventory)</span>
+        <div class="d-flex gap-3">
+            <a href="/logout" class="btn btn-danger btn-sm fw-bold">Logout</a>
+        </div>
+    </div>
+</nav>
+
+<div class="container">
+    
+    <div class="alert alert-info shadow-sm border-info mb-4">
+        <strong>Hello, {{ nama_petugas }}!</strong> Here is the <em>real-time</em> status of bale stock and work-in-progress materials approved by the Curator.
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-4 mb-3">
+            <div class="card shadow-sm border-warning h-100" style="border-width: 2px;">
+                <div class="card-body d-flex justify-content-between align-items-center bg-warning bg-opacity-10">
+                    <div>
+                        <h6 class="fw-bold text-uppercase mb-1" style="color: #b58500;">Sorter Stock (Unpressed)</h6>
+                        <h2 class="mb-0 fw-bold text-dark">{{ "%.2f"|format(total_sisa_sorter_kg) }} <span class="fs-5 text-muted">Kg</span></h2>
+                    </div>
+                    <div class="fs-1 px-3">⏳</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4 mb-3">
+            <div class="card shadow-sm border-primary h-100">
+                <div class="card-body d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="text-primary fw-bold text-uppercase mb-1">Bale Stock in Warehouse</h6>
+                        <h2 class="mb-0 fw-bold">{{ "%.2f"|format(total_gudang_kg) }} <span class="fs-5 text-muted">Kg</span></h2>
+                    </div>
+                    <div class="fs-1 px-3">🏭</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4 mb-3">
+            <div class="card shadow-sm border-success h-100">
+                <div class="card-body d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="text-success fw-bold text-uppercase mb-1">Total Bales Sold</h6>
+                        <h2 class="mb-0 fw-bold">{{ "%.2f"|format(total_terjual_kg) }} <span class="fs-5 text-muted">Kg</span></h2>
+                    </div>
+                    <div class="fs-1 px-3">🤝</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0 mb-5">
+        <div class="card-header bg-white pt-3 border-bottom-0 d-flex justify-content-between align-items-center">
+            <h5 class="fw-bold text-dark mb-0">📊 Stock vs Sales Chart (Per Material Category)</h5>
+            <button class="btn btn-sm btn-outline-dark fw-bold" onclick="downloadChart('inventoryChart', 'Warehouse_Chart_SeribuBiru')">📸 Download Chart</button>
+        </div>
+        <div class="card-body">
+            <canvas id="inventoryChart" style="height: 400px; max-height: 400px;"></canvas>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0 mb-5 border-warning">
+        <div class="card-header bg-warning pt-3 pb-3 border-bottom-0 d-flex justify-content-between align-items-center">
+            <h5 class="fw-bold text-dark mb-0">⏳ Sorter Inventory (Awaiting Press)</h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle text-center mb-0">
+                    <thead class="table-light border-bottom">
+                        <tr>
+                            <th class="text-start ps-4">Waste Category</th>
+                            <th class="text-primary">Total Sorted (In)</th>
+                            <th class="text-success">Total Pressed (Out)</th>
+                            <th class="bg-warning text-dark border-start">Remaining Sorter Stock</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in stok_sorter_list %}
+                        <tr>
+                            <td class="text-start ps-4 fw-bold">{{ item.nama_kategori }}</td>
+                            <td class="text-primary fw-bold">{{ item.total_sortir }} Kg</td>
+                            <td class="text-success fw-bold">{{ item.total_press }} Kg</td>
+                            <td class="bg-warning text-dark fw-bold fs-5 border-start">{{ item.sisa_stok }} Kg</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="4" class="text-center py-5 text-muted">No sorting data movement yet.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-header bg-white pt-4 pb-3 border-bottom-0 d-flex justify-content-between align-items-center">
+            <h5 class="fw-bold text-dark mb-0">📋 Bale Asset Details (Pressed Results)</h5>
+            <a href="/export_csv_gudang" class="btn btn-success fw-bold shadow-sm">⬇ Download CSV Inventory</a>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle text-center mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Bale Code</th>
+                            <th>Press Date</th>
+                            <th>Material Content</th>
+                            <th>Weight (Kg)</th>
+                            <th>Warehouse Status</th>
+                            <th>Buyer (Destination)</th>
+                            <th>Release Date</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in list_gudang %}
+                        <tr class="{% if item.status_stok == 'Terjual' %}table-success opacity-75{% endif %}">
+                            <td class="fw-bold text-dark">{{ item.id_batch }}</td>
+                            <td>{{ item.tanggal_press }}</td>
+                            <td class="small text-start">{{ item.rincian }}</td>
+                            <td class="fw-bold text-primary">{{ item.berat_total }}</td>
+                            <td>
+                                {% if item.status_stok == 'Di Gudang' %}
+                                    <span class="badge bg-primary px-3 py-2">🏭 In Warehouse</span>
+                                {% else %}
+                                    <span class="badge bg-success px-3 py-2">🤝 Sold</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if item.status_stok == 'Terjual' %}
+                                    <strong class="text-success">{{ item.pembeli }}</strong>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if item.status_stok == 'Terjual' %}
+                                    <span class="text-secondary fw-bold">{{ item.tanggal_keluar }}</span>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if item.status_stok == 'Di Gudang' %}
+                                    <button class="btn btn-sm btn-success fw-bold px-3 shadow-sm" onclick="bukaModalJual('{{ item.id_batch }}')">
+                                        💲 Sell
+                                    </button>
+                                {% else %}
+                                    <form action="/gudang/batal_jual" method="POST" style="display:inline;" onsubmit="return confirm('WARNING: Are you sure you want to cancel the sale (Refund) for bale {{ item.id_batch }}? The bale status will return to Warehouse.');">
+                                        <input type="hidden" name="id_batch" value="{{ item.id_batch }}">
+                                        <button type="submit" class="btn btn-sm btn-danger fw-bold px-3 shadow-sm">
+                                            ↩️ Cancel (Refund)
+                                        </button>
+                                    </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="8" class="text-center py-5 text-muted">No pressed bales have entered the warehouse yet (New bales must be approved by the Curator first).</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<div class="modal fade" id="modalJual" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title fw-bold">🤝 Mark Bale as Sold</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="/gudang/jual" method="POST">
+                <div class="modal-body">
+                    <div class="alert alert-warning text-dark small border-warning">
+                        Bale <strong><span id="labelKodeKarung"></span></strong> will be permanently removed from warehouse stock.
+                    </div>
+                    <input type="hidden" name="id_batch" id="inputIdBatch">
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Buyer Name / Destination Company:</label>
+                        <input type="text" name="pembeli" class="form-control border-success form-control-lg" placeholder="Example: Plastic Recycling Inc." required>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success fw-bold px-4">✔ Confirm Sale</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+    function downloadChart(canvasId, filename) {
+        var canvas = document.getElementById(canvasId);
+        var tempCanvas = document.createElement('canvas');
+        tempCanvas.width = canvas.width;
+        tempCanvas.height = canvas.height;
+        var ctx = tempCanvas.getContext('2d');
+        
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+        ctx.drawImage(canvas, 0, 0);
+        
+        var link = document.createElement('a');
+        link.download = filename + '.png';
+        link.href = tempCanvas.toDataURL('image/png');
+        link.click();
+    }
+
+    function bukaModalJual(idBatch) {
+        document.getElementById('labelKodeKarung').innerText = idBatch;
+        document.getElementById('inputIdBatch').value = idBatch;
+        var myModal = new bootstrap.Modal(document.getElementById('modalJual'));
+        myModal.show();
+    }
+
+    const labelKat = {{ labels_kategori | tojson }};
+    const dataGudang = {{ data_gudang | tojson }};
+    const dataTerjual = {{ data_terjual | tojson }};
+    const dataSorter = {{ data_sorter | tojson }}; 
+
+    const ctx = document.getElementById('inventoryChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labelKat,
+            datasets: [
+                {
+                    label: 'Remaining Sorter Stock (WIP)', 
+                    data: dataSorter,
+                    backgroundColor: '#ffc107',
+                    borderWidth: 0,
+                    borderRadius: 4
+                },
+                {
+                    label: 'Remaining in Press Warehouse',
+                    data: dataGudang,
+                    backgroundColor: '#0d6efd',
+                    borderWidth: 0,
+                    borderRadius: 4
+                },
+                {
+                    label: 'Already Sold',
+                    data: dataTerjual,
+                    backgroundColor: '#198754',
+                    borderWidth: 0,
+                    borderRadius: 4
+                }
+            ]
+        },
+        options: {
+            responsive: true, 
+            maintainAspectRatio: false,
+            layout: {
+                padding: {
+                    bottom: 15
+                }
+            },
+            scales: {
+                x: { 
+                    stacked: false, 
+                    ticks: {
+                        autoSkip: false,
+                        maxRotation: 45,
+                        minRotation: 45,
+                        font: {
+                            size: 11
+                        }
+                    }
+                },
+                y: { stacked: false, beginAtZero: true }
+            },
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return context.dataset.label + ': ' + context.parsed.y + ' Kg';
+                        }
+                    }
+                }
+            }
+        }
+    });
+</script>
+</body>
+</html>

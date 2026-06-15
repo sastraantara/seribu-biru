@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dasbor Kolektor - Pelaporan Cleanup</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+
+<div class="container mt-4 mb-5">
+    <div class="card shadow-sm border-primary">
+        <div class="card-header bg-primary text-white">
+            <h4 class="mb-0">Form Pelaporan Kolektor (Lapangan)</h4>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-info d-flex justify-content-between align-items-center mb-3 shadow-sm">
+                <strong>Halo, {{ nama_petugas }}! Selamat bertugas.</strong>
+                <a href="/logout" class="btn btn-sm btn-outline-danger bg-white fw-bold">Ganti Akun</a>
+            </div>
+
+            <div class="alert alert-secondary border-secondary shadow-sm mb-4">
+                <i class="fw-bold text-dark">📅 Info Data Lapangan Terkini:</i> Data terakhir masuk untuk tanggal kegiatan 
+                <strong class="text-primary fs-5 ms-1">
+                    {% if tanggal_terakhir %} 
+                        {{ tanggal_terakhir }} 
+                    {% else %} 
+                        Belum ada data 
+                    {% endif %}
+                </strong>
+                {% if tanggal_terakhir %}
+                <br>
+                <small class="text-dark d-block mt-2" style="font-size: 0.95rem;">
+                    🧑‍🌾 Disetor oleh: <strong>{{ teks_penyetor }}</strong>
+                </small>
+                {% endif %}
+            </div>
+
+            {% if list_revisi %}
+            <div class="alert alert-danger shadow border-danger mb-4">
+                <h5 class="fw-bold alert-heading text-danger">⚠️ Perhatian: Ada Data yang Ditolak Kurator!</h5>
+                <p class="mb-2 text-dark">Silakan perbaiki data dan lakukan submit ulang untuk tanggal di bawah ini:</p>
+                <hr class="border-danger">
+                <ul class="mb-0 text-dark">
+                    {% for revisi in list_revisi %}
+                    <li class="mb-2">
+                        <strong>Tanggal Kegiatan:</strong> <span class="badge bg-dark fs-6">{{ revisi.id_batch }}</span><br>
+                        <strong>Catatan REVISI Kurator:</strong> <em class="text-danger fw-bold">"{{ revisi.catatan }}"</em>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+
+            <form action="/submit_kolektor" method="POST" enctype="multipart/form-data">
+                
+                <div class="mb-4 bg-light p-3 border rounded">
+                    <label class="form-label fw-bold text-primary fs-5">Tanggal Kegiatan Lapangan</label>
+                    <input type="date" name="tanggal_kegiatan" class="form-control form-control-lg border-primary" required>
+                    <small class="text-muted d-block mt-1">Pilih tanggal dilaksanakannya operasi cleanup sampah ini.</small>
+                </div>
+
+                <hr class="my-4">
+
+                <h5 class="mb-3 text-primary fw-bold">1. Dokumentasi Lokasi Cleanup</h5>
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label fw-bold">Foto Sebelum Cleanup</label>
+                        <input class="form-control" type="file" name="foto_sebelum" accept="image/*" multiple required>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label fw-bold">Foto Saat Cleanup</label>
+                        <input class="form-control" type="file" name="foto_saat" accept="image/*" multiple required>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label fw-bold">Foto Setelah Cleanup</label>
+                        <input class="form-control" type="file" name="foto_setelah" accept="image/*" multiple required>
+                    </div>
+                </div>
+
+                <hr class="my-4">
+
+                <h5 class="mb-3 text-primary fw-bold">2. Dokumentasi Karung & Timbangan</h5>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Foto Karung di Lokasi Pengambilan</label>
+                    <input class="form-control" type="file" name="foto_karung_lokasi" accept="image/*" multiple required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Foto Sampah Basah Saat Ditimbang</label>
+                    <input class="form-control" type="file" name="foto_timbang_basah" accept="image/*" multiple required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Foto Karung Berjejer di Fasilitas Sortir</label>
+                    <input class="form-control" type="file" name="foto_fasilitas" accept="image/*" multiple required>
+                </div>
+
+                <hr class="my-4">
+
+                <!-- ============================================== -->
+                <!-- INPUT KOORDINAT MANUAL WAJIB DIISI -->
+                <!-- ============================================== -->
+                <div class="row bg-light p-3 border rounded shadow-sm mb-4">
+                    <h5 class="fw-bold text-dark mb-3">📍 Koordinat Lokasi</h5>
+                    
+                    <div class="col-md-6 mb-3 mb-md-0">
+                        <label class="form-label fw-bold text-dark">Latitude</label>
+                        <input type="text" name="latitude" class="form-control border-primary" placeholder="Contoh: -6.200000" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold text-dark">Longitude</label>
+                        <input type="text" name="longitude" class="form-control border-primary" placeholder="Contoh: 106.816666" required>
+                    </div>
+                </div>
+
+                <div class="mb-4 mt-4 bg-light p-3 border rounded">
+                    <label class="form-label fw-bold text-dark fs-5">Total Berat Kotor Keseluruhan (Kg)</label>
+                    <input type="number" step="0.01" class="form-control form-control-lg border-dark fw-bold text-primary" 
+                           name="berat_kotor" placeholder="Contoh: 25.50" required>
+                    <small class="text-muted d-block mt-1">Masukkan angka total berat sampah kotor yang dibawa dari lapangan.</small>
+                </div>
+
+                <div class="d-grid gap-2 mt-4 shadow-sm">
+                    <button type="submit" class="btn btn-primary btn-lg fw-bold">Kirim Laporan Kolektor</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div id="loadingOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 9999; flex-direction: column; justify-content: center; align-items: center; color: white;">
+    <div class="spinner-border text-primary mb-3" role="status" style="width: 4rem; height: 4rem; border-width: 0.4rem;"></div>
+    <h3 class="fw-bold text-primary">Mengunggah Data...</h3>
+    <p class="text-light">Mohon tunggu dan jangan menutup/menyegarkan halaman ini.</p>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        var forms = document.querySelectorAll('form');
+        forms.forEach(function(form) {
+            form.addEventListener('submit', function(event) {
+                document.getElementById('loadingOverlay').style.display = 'flex';
+                var submitBtn = form.querySelector('button[type="submit"]');
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.innerHTML = 'Memproses... ⏳';
+                }
+            });
+        });
+    });
+</script>
+
+</body>
+</html>

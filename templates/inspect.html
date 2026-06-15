@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Curator Inspection</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .tab-content { border: 1px solid #dee2e6; border-top: none; padding: 20px; background-color: #fff; border-bottom-left-radius: 0.375rem; border-bottom-right-radius: 0.375rem; }
+        .log-box::-webkit-scrollbar { width: 6px; }
+        .log-box::-webkit-scrollbar-thumb { background-color: #adb5bd; border-radius: 10px; }
+        .img-gallery { height: 220px; width: 100%; object-fit: cover; }
+        .img-documentation { height: 220px; width: 100%; object-fit: cover; }
+    </style>
+</head>
+<body class="bg-light pb-5">
+
+{% macro render_doc_gallery(title, bagian, kategori_foto, col_class="col-md-4", btn_color="primary") %}
+<div class="{{ col_class }} mb-4">
+    <h6 class="fw-bold">{{ title }}</h6>
+    
+    {# 1. Hitung foto yang belum terpilih #}
+    {% set unselected = namespace(count=0) %}
+    {% for f in semua_foto if f.bagian == bagian and f.kategori_foto == kategori_foto and not f.is_selected %}
+        {% set unselected.count = unselected.count + 1 %}
+    {% endfor %}
+
+    {# 2. Tampilkan area foto yang sudah TERPILIH #}
+    {% set selected = namespace(count=0) %}
+    <div class="row px-2">
+    {% for f in semua_foto if f.bagian == bagian and f.kategori_foto == kategori_foto and f.is_selected %}
+        {% set selected.count = selected.count + 1 %}
+        <div class="col-12 mb-2 px-1 position-relative">
+            <span class="badge bg-success position-absolute top-0 end-0 m-2">✔ Selected</span>
+            <img src="/{{ f.path_foto }}" class="img-fluid rounded border border-{{ btn_color }} border-2 mb-1 img-gallery">
+            <form action="/curator/select_documentation" method="POST">
+                <input type="hidden" name="foto_id" value="{{ f.id }}">
+                <button type="submit" class="btn btn-danger btn-sm w-100 fw-bold">✖ Deselect</button>
+            </form>
+        </div>
+    {% endfor %}
+    </div>
+    
+    {% if selected.count == 0 %}
+        <div class="alert alert-secondary py-2 small mb-2 text-center border-0">No photo selected yet.</div>
+    {% endif %}
+
+    {# 3. Tombol & Area foto yang BELUM TERPILIH #}
+    {% if unselected.count > 0 %}
+        <button class="btn btn-outline-secondary btn-sm fw-bold w-100 shadow-sm" data-bs-toggle="collapse" data-bs-target="#col_{{ bagian }}_{{ kategori_foto }}">
+            View Other Options ({{ unselected.count }})
+        </button>
+        <div class="collapse mt-2" id="col_{{ bagian }}_{{ kategori_foto }}">
+            <div class="row px-2">
+                {% for f in semua_foto if f.bagian == bagian and f.kategori_foto == kategori_foto and not f.is_selected %}
+                    <div class="col-6 mb-2 px-1">
+                        <img src="/{{ f.path_foto }}" class="img-fluid rounded border mb-1 img-gallery opacity-75">
+                        <form action="/curator/select_documentation" method="POST">
+                            <input type="hidden" name="foto_id" value="{{ f.id }}">
+                            <button type="submit" class="btn btn-outline-{{ btn_color }} btn-sm w-100 fw-bold">➕ Select Additional</button>
+                        </form>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endmacro %}
+
+{% macro render_detail_gallery(item, jenis_part, btn_color) %}
+<div class="row">
+    {# Area Terpilih #}
+    {% set selected = namespace(count=0) %}
+    {% for foto in item['fotos'] if foto.is_selected %}
+        {% set selected.count = selected.count + 1 %}
+        <div class="col-md-3 text-center mb-3 position-relative">
+            <span class="badge bg-success position-absolute top-0 end-0 m-3">✔ Selected</span>
+            <img src="/{{ foto.path_foto }}" class="img-fluid rounded border border-{{ btn_color }} border-2 mb-2 img-documentation">
+            <form action="/curator/select_photo" method="POST">
+                <input type="hidden" name="foto_id" value="{{ foto.id }}">
+                <button type="submit" class="btn btn-danger btn-sm w-100 fw-bold">✖ Deselect</button>
+            </form>
+        </div>
+    {% endfor %}
+    
+    {% if selected.count == 0 %}
+        <div class="col-12"><div class="alert alert-secondary py-2 small mb-3 text-center w-50 border-0">No photo selected yet.</div></div>
+    {% endif %}
+
+    {# Area Belum Terpilih #}
+    {% set unselected = namespace(count=0) %}
+    {% for foto in item['fotos'] if not foto.is_selected %}
+        {% set unselected.count = unselected.count + 1 %}
+    {% endfor %}
+
+    {% if unselected.count > 0 %}
+        <div class="col-12">
+            <button class="btn btn-outline-secondary btn-sm mt-1 fw-bold shadow-sm" data-bs-toggle="collapse" data-bs-target="#col_{{ jenis_part }}_{{ item['id'] }}">
+                View Other Options ({{ unselected.count }})
+            </button>
+            <div class="collapse mt-3" id="col_{{ jenis_part }}_{{ item['id'] }}">
+                <div class="row">
+                    {% for foto in item['fotos'] if not foto.is_selected %}
+                        <div class="col-md-3 mb-3">
+                            <img src="/{{ foto.path_foto }}" class="img-fluid rounded border mb-2 img-documentation opacity-75">
+                            <form action="/curator/select_photo" method="POST">
+                                <input type="hidden" name="foto_id" value="{{ foto.id }}">
+                                <button type="submit" class="btn btn-outline-{{ btn_color }} btn-sm w-100 fw-bold">➕ Select Additional</button>
+                            </form>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endmacro %}
+
+
+{% set is_presser_only = presser and not kolektor and not sorter %}
+
+<div class="container-fluid mt-5 px-4" style="max-width: 1400px;">
+    
+    <div class="mb-4">
+        <form action="/curator/hapus_batch" method="POST" style="display:inline;" onsubmit="return confirm('WARNING: Are you sure you want to permanently delete this data?');">
+            <input type="hidden" name="id_batch" value="{{ batch.id_batch }}">
+            <button type="submit" class="btn btn-danger fw-bold shadow">🗑️ Delete Data</button>
+        </form>
+        <a href="/curator" class="btn btn-outline-secondary fw-bold ms-2">⬅ Back to Dashboard</a>
+    </div>
+
+    {% if batch.status == 'Perlu_Revisi' %}
+        <div class="alert alert-danger shadow-sm border-danger">
+            <h5 class="alert-heading fw-bold mb-2">❌ This Data Needs Revision!</h5>
+            <p class="mb-2 text-dark">Data returned to the field for the following reasons:</p>
+            <ul class="mb-0 text-dark">
+                {% if kolektor and batch.status_kolektor == 'Rejected' %}
+                    <li><strong>Collector:</strong> {{ batch.catatan_kolektor or 'No specific notes.' }}</li>
+                {% endif %}
+                {% if sorter and batch.status_sorter == 'Rejected' %}
+                    <li><strong>Sorter:</strong> {{ batch.catatan_sorter or 'No specific notes.' }}</li>
+                {% endif %}
+                {% if presser and batch.status_presser == 'Rejected' %}
+                    <li><strong>Presser:</strong> {{ batch.catatan_presser or 'No specific notes.' }}</li>
+                {% endif %}
+            </ul>
+        </div>
+    {% elif batch.status == 'Disetujui' %}
+        <div class="alert alert-success shadow-sm d-flex justify-content-between align-items-center">
+            <div>
+                <h5 class="alert-heading fw-bold mb-1">✅ This data is fully approved</h5>
+                <p class="mb-0 text-dark">This data is final and has entered the Auditor Database.</p>
+            </div>
+            <form action="/curator/tarik_data" method="POST" onsubmit="return confirm('WARNING: Are you sure you want to revoke this data from the Auditor? The status will revert to Awaiting Curation.');">
+                <input type="hidden" name="id_batch" value="{{ batch.id_batch }}">
+                <button type="submit" class="btn btn-danger fw-bold shadow">🔙 Revoke from Auditor</button>
+            </form>
+        </div>
+    {% endif %}
+
+    <div class="row mt-4">
+        <div class="col-lg-9 mb-4">
+            
+            <ul class="nav nav-tabs" id="inspectionTabs" role="tablist">
+                {% if kolektor %}
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active fw-bold text-primary" data-bs-toggle="tab" data-bs-target="#collector" type="button">Collector Data</button>
+                    </li>
+                {% endif %}
+                {% if sorter %}
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link {% if not kolektor %}active{% endif %} fw-bold text-success" data-bs-toggle="tab" data-bs-target="#sorter" type="button">Sorter Data</button>
+                    </li>
+                {% endif %}
+                {% if presser %}
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link {% if not kolektor and not sorter %}active{% endif %} fw-bold text-warning-emphasis" data-bs-toggle="tab" data-bs-target="#presser" type="button">📦 Press Bale Inspection</button>
+                    </li>
+                {% endif %}
+            </ul>
+
+            <div class="tab-content shadow-sm">
+                
+                {% if kolektor %}
+                <div class="tab-pane fade show active" id="collector">
+                    <h5 class="text-primary border-bottom pb-2">GPS & Field Information</h5>
+                    <p class="mb-3"><strong>Field Operator:</strong> <span class="badge bg-primary fs-6">{{ kolektor.nama_petugas }}</span></p>
+                    
+                    <div class="mb-3">
+                        <strong>GPS Coordinates:</strong><br>
+                        {% if kolektor.lokasi %}
+                            <div class="mt-2 p-2 bg-light border rounded">
+                            {% for loc in kolektor.lokasi %}
+                                <span class="d-block mb-1">
+                                    📍 Location {{ loop.index }} ({{ loc.nama }}): 
+                                    <a href="https://maps.google.com/?q={{ loc.lat }},{{ loc.lon }}" target="_blank" class="fw-bold text-decoration-none">
+                                        {{ loc.lat }}, {{ loc.lon }}
+                                    </a>
+                                </span>
+                            {% endfor %}
+                            </div>
+                        {% else %}
+                            <span class="text-danger mt-1 d-block">No GPS Data Available</span>
+                        {% endif %}
+                    </div>
+
+                    <p><strong>Total Gross Weight:</strong> <span class="fs-5 fw-bold text-primary">{{ kolektor.berat_kotor }} Kg</span></p>
+                
+                    <h5 class="text-primary border-bottom pb-2 mt-4">Scale & Facility Documentation</h5>
+                    <div class="row text-center mb-4">
+                        {{ render_doc_gallery('Bags on Site', 'kolektor', 'karung_lokasi', 'col-md-4', 'primary') }}
+                        {{ render_doc_gallery('Wet Weight Scale', 'kolektor', 'timbang_basah', 'col-md-4', 'primary') }}
+                        {{ render_doc_gallery('Arriving at Facility', 'kolektor', 'fasilitas', 'col-md-4', 'primary') }}
+                    </div>
+                    
+                    <h5 class="text-primary border-bottom pb-2 mt-4">Field Execution Photos</h5>
+                    <div class="row text-center mb-4">
+                        {{ render_doc_gallery('Before Cleanup', 'kolektor', 'sebelum', 'col-md-4', 'primary') }}
+                        {{ render_doc_gallery('During Cleanup', 'kolektor', 'saat', 'col-md-4', 'primary') }}
+                        {{ render_doc_gallery('After Cleanup', 'kolektor', 'setelah', 'col-md-4', 'primary') }}
+                    </div>
+
+                    <div class="mt-4 p-4 border rounded shadow-sm {% if batch.status_kolektor == 'Approved' %}bg-success-subtle border-success{% elif batch.status_kolektor == 'Rejected' %}bg-danger-subtle border-danger{% else %}bg-light{% endif %}">
+                        <h5 class="mb-3">Collector Validation Status: 
+                            <span class="badge {% if batch.status_kolektor == 'Approved' %}bg-success{% elif batch.status_kolektor == 'Rejected' %}bg-danger{% else %}bg-secondary{% endif %}">{{ batch.status_kolektor }}</span>
+                        </h5>
+                        {% if batch.status != 'Disetujui' %}
+                            <form action="/curator/action" method="POST" class="mt-3">
+                                <input type="hidden" name="id_batch" value="{{ batch.id_batch }}">
+                                <input type="hidden" name="part" value="kolektor">
+                                <label class="form-label fw-bold">Curator Notes:</label>
+                                <textarea name="catatan" class="form-control mb-3 border-primary" rows="2" placeholder="Write revision instructions if rejecting..."></textarea>
+                                <div class="d-flex gap-2">
+                                    <button type="submit" name="action" value="approve" class="btn btn-success fw-bold px-4">✔ Approve</button>
+                                    <button type="submit" name="action" value="reject" class="btn btn-danger fw-bold px-4" onclick="if(this.form.catatan.value.trim() === '') { alert('⚠️ REVISION REASON IS REQUIRED!\n\nPlease write clear instructions/reasons so the Collector team can fix their data.'); this.form.catatan.focus(); return false; }">✖ Reject</button>
+                                </div>
+                            </form>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if sorter %}
+                <div class="tab-pane fade {% if not kolektor %}show active{% endif %}" id="sorter">
+                    <h5 class="text-success border-bottom pb-2">Activity Documentation</h5>
+                    <p class="mb-3"><strong>Sorter Operator:</strong> <span class="badge bg-success fs-6">{{ sorter.nama_petugas }}</span></p>
+
+                    <div class="row text-center mb-4">
+                        {{ render_doc_gallery('Working Photo', 'sorter', 'foto_bekerja', 'col-md-6', 'success') }}
+                        {{ render_doc_gallery('All Sorted Bags', 'sorter', 'foto_seluruh_karung', 'col-md-6', 'success') }}
+                    </div>
+
+                    <h5 class="text-success border-bottom pb-2">Weight Details per Category (Kg)</h5>
+                    {% for item in detail_sorter %}
+                        <div class="card mb-3 shadow-sm border-success border-opacity-50">
+                            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                                <strong class="fs-5">{{ item['nama'] }}</strong>
+                                <span class="badge bg-success fs-6">{{ item['berat'] }} Kg</span>
+                            </div>
+                            <div class="card-body">
+                                {{ render_detail_gallery(item, 'sorter', 'success') }}
+                            </div>
+                        </div>
+                    {% endfor %}
+
+                    <div class="mt-4 p-4 border rounded shadow-sm {% if batch.status_sorter == 'Approved' %}bg-success-subtle border-success{% elif batch.status_sorter == 'Rejected' %}bg-danger-subtle border-danger{% else %}bg-light{% endif %}">
+                        <h5 class="mb-3">Sorter Validation Status:
+                            <span class="badge {% if batch.status_sorter == 'Approved' %}bg-success{% elif batch.status_sorter == 'Rejected' %}bg-danger{% else %}bg-secondary{% endif %}">{{ batch.status_sorter }}</span>
+                        </h5>
+                        {% if batch.status != 'Disetujui' %}
+                            <form action="/curator/action" method="POST" class="mt-3">
+                                <input type="hidden" name="id_batch" value="{{ batch.id_batch }}">
+                                <input type="hidden" name="part" value="sorter">
+                                <label class="form-label fw-bold">Curator Notes:</label>
+                                <textarea name="catatan" class="form-control mb-3 border-success" rows="2" placeholder="Write revision instructions if rejecting..."></textarea>
+                                <div class="d-flex gap-2">
+                                    <button type="submit" name="action" value="approve" class="btn btn-success fw-bold px-4">✔ Approve</button>
+                                    <button type="submit" name="action" value="reject" class="btn btn-danger fw-bold px-4" onclick="if(this.form.catatan.value.trim() === '') { alert('⚠️ REVISION REASON IS REQUIRED!\n\nPlease write clear instructions/reasons so the Sorter team can fix their data.'); this.form.catatan.focus(); return false; }">✖ Reject</button>
+                                </div>
+                            </form>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if presser %}
+                <div class="tab-pane fade {% if not kolektor and not sorter %}show active{% endif %}" id="presser">
+                    <h5 class="text-warning-emphasis border-bottom pb-2">Press Machine Area Documentation</h5>
+                    <p class="mb-3"><strong>Presser Operator:</strong> <span class="badge bg-warning text-dark fs-6">{{ presser.nama_petugas }}</span></p>
+
+                    <div class="row text-center mb-4">
+                        {{ render_doc_gallery('Working Photo', 'presser', 'foto_bekerja', 'col-md-6', 'warning text-dark') }}
+                    </div>
+                    
+                    <h5 class="text-warning-emphasis border-bottom pb-2">Press Bale Weight Details (Kg)</h5>
+                    {% for item in detail_presser %}
+                        <div class="card mb-3 shadow-sm border-warning border-opacity-50">
+                            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                                <strong class="fs-5">{{ item['nama'] }}</strong>
+                                <span class="badge bg-warning text-dark fs-6">{{ item['berat'] }} Kg</span>
+                            </div>
+                            <div class="card-body">
+                                {{ render_detail_gallery(item, 'presser', 'warning') }}
+                            </div>
+                        </div>
+                    {% endfor %}
+
+                    <div class="mt-4 p-4 border rounded shadow-sm {% if batch.status_presser == 'Approved' %}bg-success-subtle border-success{% elif batch.status_presser == 'Rejected' %}bg-danger-subtle border-danger{% else %}bg-light{% endif %}">
+                        <h5 class="mb-3">Presser Validation Status: 
+                            <span class="badge {% if batch.status_presser == 'Approved' %}bg-success{% elif batch.status_presser == 'Rejected' %}bg-danger{% else %}bg-secondary{% endif %}">{{ batch.status_presser }}</span>
+                        </h5>
+                        {% if batch.status != 'Disetujui' %}
+                            <form action="/curator/action" method="POST" class="mt-3">
+                                <input type="hidden" name="id_batch" value="{{ batch.id_batch }}">
+                                <input type="hidden" name="part" value="presser">
+                                <label class="form-label fw-bold">Curator Notes:</label>
+                                <textarea name="catatan" class="form-control mb-3 border-warning" rows="2" placeholder="Write revision instructions if rejecting..."></textarea>
+                                <div class="d-flex gap-2">
+                                    <button type="submit" name="action" value="approve" class="btn btn-success fw-bold px-4">✔ Approve</button>
+                                    <button type="submit" name="action" value="reject" class="btn btn-danger fw-bold px-4" onclick="if(this.form.catatan.value.trim() === '') { alert('⚠️ REVISION REASON IS REQUIRED!\n\nPlease write clear instructions/reasons so the Presser team can fix their data.'); this.form.catatan.focus(); return false; }">✖ Reject</button>
+                                </div>
+                            </form>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+
+            </div>
+        </div>
+
+        <div class="col-lg-3">
+            <div class="card shadow-sm border-0 rounded-3 sticky-top" style="top: 20px;">
+                <div class="card-header bg-dark text-white fw-bold py-3 d-flex justify-content-between">
+                    <span>⏱️ Activity History</span>
+                    <span class="badge bg-secondary">{{ riwayat_log|length }} Logs</span>
+                </div>
+                
+                <div class="card-body bg-light p-0 log-box" style="max-height: 600px; overflow-y: auto;">
+                    <div class="list-group list-group-flush">
+                        {% for log in riwayat_log %}
+                            <div class="list-group-item p-3 border-bottom border-light">
+                                <div class="d-flex w-100 justify-content-between align-items-center mb-1">
+                                    <h6 class="mb-0 fw-bold" style="font-size: 0.95rem;">
+                                        {% if 'Approved' in log.aksi %}
+                                            <span class="text-success">🟢 {{ log.aksi }}</span>
+                                        {% elif 'Rejected' in log.aksi %}
+                                            <span class="text-danger">🔴 {{ log.aksi }}</span>
+                                        {% elif 'Re-submit' in log.aksi %}
+                                            <span class="text-warning text-dark">🔵 {{ log.aksi }}</span>
+                                        {% else %}
+                                            <span class="text-primary">ℹ️ {{ log.aksi }}</span>
+                                        {% endif %}
+                                    </h6>
+                                    <small class="text-muted fw-bold" style="font-size: 0.75rem;">{{ log.waktu_wib.strftime('%d/%m - %H:%M') }}</small>
+                                </div>
+                                <p class="mb-1 small text-secondary">Actor: <strong>{{ log.aktor }}</strong></p>
+                                
+                                {% if log.catatan %}
+                                    <div class="mt-2 text-dark bg-white p-2 rounded border border-start-0 border-end-0 border-bottom-0 shadow-sm" style="font-size: 0.85rem;">
+                                        <em>"{{ log.catatan }}"</em>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        {% else %}
+                            <div class="p-4 text-center text-muted">
+                                <small><em>No activity yet.</em></small>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        var lastTab = localStorage.getItem('tabTerakhirMarineTracker');
+        if (lastTab) {
+            var tabEl = document.querySelector('button[data-bs-target="' + lastTab + '"]');
+            if (tabEl) {
+                var tab = new bootstrap.Tab(tabEl);
+                tab.show();
+            }
+        }
+        var semuaTab = document.querySelectorAll('button[data-bs-toggle="tab"]');
+        semuaTab.forEach(function(el) {
+            el.addEventListener('shown.bs.tab', function (event) {
+                var namaTabAktif = event.target.getAttribute('data-bs-target');
+                localStorage.setItem('tabTerakhirMarineTracker', namaTabAktif);
+            });
+        });
+    });
+</script>
+</body>
+</html>

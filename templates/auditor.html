@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auditor Dashboard - Analytics</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .nav-tabs .nav-link.active {
+            font-weight: bold;
+            border-bottom: 3px solid;
+            background-color: transparent;
+        }
+        #harian-tab.active { border-bottom-color: #0d6efd; color: #0d6efd !important; }
+        #presser-tab.active { border-bottom-color: #ffc107; color: #ffc107 !important; }
+        .nav-tabs .nav-link { color: #6c757d; border: none; }
+    </style>
+</head>
+<body class="bg-light">
+
+<nav class="navbar navbar-dark bg-secondary mb-4 shadow">
+    <div class="container">
+        <span class="navbar-brand mb-0 h1">Seribu Biru 2.0 - Auditor Analytics</span>
+        <span class="navbar-text text-light">Final Data Archive</span>
+    </div>
+</nav>
+
+<div class="container mb-5">
+    
+    <div class="alert alert-secondary d-flex justify-content-between align-items-center mb-4 shadow-sm">
+        <strong>Hello, {{ nama_petugas }}! Welcome to the Analytics Dashboard.</strong>
+        <a href="/logout" class="btn btn-sm btn-outline-danger fw-bold bg-white">Logout</a>
+    </div>
+
+    <div class="card shadow-sm border-0 mb-4 bg-white">
+        <div class="card-body">
+            <form action="/auditor" method="GET" class="row align-items-center">
+                <div class="col-auto">
+                    <label class="fw-bold text-dark">📊 Analytics Data Filter:</label>
+                </div>
+                
+                <div class="col-md-3">
+                    <select name="bulan" class="form-select border-secondary fw-bold">
+                        <option value="all" {% if bulan_terpilih == 'all' or not bulan_terpilih %}selected{% endif %}>All Months</option>
+                        <option value="01" {% if bulan_terpilih == '01' %}selected{% endif %}>January</option>
+                        <option value="02" {% if bulan_terpilih == '02' %}selected{% endif %}>February</option>
+                        <option value="03" {% if bulan_terpilih == '03' %}selected{% endif %}>March</option>
+                        <option value="04" {% if bulan_terpilih == '04' %}selected{% endif %}>April</option>
+                        <option value="05" {% if bulan_terpilih == '05' %}selected{% endif %}>May</option>
+                        <option value="06" {% if bulan_terpilih == '06' %}selected{% endif %}>June</option>
+                        <option value="07" {% if bulan_terpilih == '07' %}selected{% endif %}>July</option>
+                        <option value="08" {% if bulan_terpilih == '08' %}selected{% endif %}>August</option>
+                        <option value="09" {% if bulan_terpilih == '09' %}selected{% endif %}>September</option>
+                        <option value="10" {% if bulan_terpilih == '10' %}selected{% endif %}>October</option>
+                        <option value="11" {% if bulan_terpilih == '11' %}selected{% endif %}>November</option>
+                        <option value="12" {% if bulan_terpilih == '12' %}selected{% endif %}>December</option>
+                    </select>
+                </div>
+
+                <div class="col-md-3">
+                    <select name="tahun" class="form-select border-secondary fw-bold">
+                        <option value="all" {% if tahun_terpilih == 'all' %}selected{% endif %}>All Years</option>
+                        {% for thn in tahun_tersedia %}
+                        <option value="{{ thn }}" {% if tahun_terpilih == thn %}selected{% endif %}>{{ thn }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-auto">
+                    <button type="submit" class="btn btn-secondary fw-bold px-4">Apply Filter</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-6 mb-3">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-white border-bottom-0 pt-3 d-flex justify-content-between align-items-center">
+                    <h5 class="text-secondary fw-bold mb-0">Waste Incoming Trend (Gross Kg)</h5>
+                    <button class="btn btn-sm btn-outline-secondary fw-bold" onclick="downloadChart('trendChart', 'Waste_Incoming_Trend')">📸 Download Chart</button>
+                </div>
+                <div class="card-body">
+                    <canvas id="trendChart" style="max-height: 300px;"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6 mb-3">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-white border-bottom-0 pt-3 d-flex justify-content-between align-items-center">
+                    <h5 class="text-success fw-bold mb-0">Sorted Composition (Kg)</h5>
+                    <button class="btn btn-sm btn-outline-success fw-bold" onclick="downloadChart('categoryChart', 'Sorted_Composition')">📸 Download Chart</button>
+                </div>
+                <div class="card-body">
+                    <canvas id="categoryChart" style="max-height: 300px;"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0">
+        <div class="card-header bg-white border-bottom-0 pt-4 pb-0 d-flex justify-content-between align-items-center">
+            <h4 class="text-dark mb-0 fw-bold">Approved Batches Archive</h4>
+        </div>
+        
+        <div class="card-body p-0">
+            <ul class="nav nav-tabs px-4 pt-3" id="auditorTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active fs-5" id="harian-tab" data-bs-toggle="tab" data-bs-target="#harian" type="button" role="tab">
+                        🌊 Daily Report (Col & Sor)
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link fs-5" id="presser-tab" data-bs-toggle="tab" data-bs-target="#presser" type="button" role="tab">
+                        📦 Press Bales (Independent)
+                    </button>
+                </li>
+            </ul>
+
+            <div class="tab-content p-4" id="auditorTabsContent">
+                <div class="tab-pane fade show active" id="harian" role="tabpanel">
+                    <div class="d-flex justify-content-end mb-3">
+                        <a href="/export_csv_harian" class="btn btn-primary fw-bold shadow-sm">
+                            ⬇ Download CSV (Daily)
+                        </a>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle text-center mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Activity Date</th>
+                                    <th>Curated By</th>
+                                    <th>Status</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for batch in arsip_harian %}
+                                <tr>
+                                    <td class="fw-bold text-primary fs-5">{{ batch.id_batch }}</td>
+                                    <td class="text-secondary fw-bold">{{ batch.kurator }}</td>
+                                    <td><span class="badge bg-success">Approved / Final</span></td>
+                                    <td>
+                                        <a href="/auditor/download_photos/{{ batch.id_batch }}" class="btn btn-sm btn-outline-success fw-bold shadow-sm px-3">
+                                            📦 Download ZIP
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="4" class="text-center text-muted py-4">No approved daily data found for this period.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="tab-pane fade" id="presser" role="tabpanel">
+                    <div class="d-flex justify-content-end mb-3">
+                        <a href="/export_csv_presser" class="btn btn-warning text-dark fw-bold shadow-sm">
+                            ⬇ Download CSV (Press Bales)
+                        </a>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle text-center mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Unique Bale Code</th>
+                                    <th>Creation Date</th>
+                                    <th>Curated By</th>
+                                    <th>Status</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for batch in arsip_presser %}
+                                <tr>
+                                    <td class="fw-bold text-warning-emphasis fs-5">{{ batch.id_batch }}</td>
+                                    <td class="text-secondary">{{ batch.tanggal.strftime('%Y-%m-%d') }}</td>
+                                    <td class="text-secondary fw-bold">{{ batch.kurator }}</td>
+                                    <td><span class="badge bg-success">Approved / Final</span></td>
+                                    <td>
+                                        <a href="/auditor/download_photos/{{ batch.id_batch }}" class="btn btn-sm btn-outline-success fw-bold shadow-sm px-3">
+                                            📦 Download ZIP
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted py-4">No approved press bales found for this period.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+    // ==========================================
+    // FUNGSI UNDUH GRAFIK JADI PNG (BACKGROUND PUTIH)
+    // ==========================================
+    function downloadChart(canvasId, filename) {
+        var canvas = document.getElementById(canvasId);
+        
+        // Buat canvas sementara untuk memberikan background putih
+        var tempCanvas = document.createElement('canvas');
+        tempCanvas.width = canvas.width;
+        tempCanvas.height = canvas.height;
+        var ctx = tempCanvas.getContext('2d');
+        
+        // Isi dengan warna putih
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+        // Gambar ulang grafik di atas background putih
+        ctx.drawImage(canvas, 0, 0);
+        
+        // Buat link unduhan
+        var link = document.createElement('a');
+        link.download = filename + '.png';
+        link.href = tempCanvas.toDataURL('image/png');
+        link.click();
+    }
+
+    // ==========================================
+    // CHART.JS LOGIC
+    // ==========================================
+    const labelTgl = {{ labels_tanggal | tojson }};
+    const dataTgl = {{ data_tanggal | tojson }};
+    const labelKat = {{ labels_kategori | tojson }};
+    const dataKat = {{ data_kategori | tojson }};
+
+    const ctxTrend = document.getElementById('trendChart').getContext('2d');
+    new Chart(ctxTrend, {
+        type: 'line',
+        data: {
+            labels: labelTgl,
+            datasets: [{
+                label: 'Gross Weight (Kg)',
+                data: dataTgl,
+                backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                borderColor: 'rgba(54, 162, 235, 1)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.3
+            }]
+        },
+        options: { responsive: true, maintainAspectRatio: false }
+    });
+
+    const ctxCategory = document.getElementById('categoryChart').getContext('2d');
+    new Chart(ctxCategory, {
+        type: 'doughnut',
+        data: {
+            labels: labelKat,
+            datasets: [{
+                label: 'Weight (Kg)',
+                data: dataKat,
+                backgroundColor: [
+                    '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
+                    '#FF9F40', '#E7E9ED', '#8AC926', '#1982C4', '#6A4C93'
+                ],
+                borderWidth: 1
+            }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
+    });
+
+    // TAB MEMORY
+    document.addEventListener("DOMContentLoaded", function() {
+        var lastTab = localStorage.getItem('tabDasborAuditor');
+        if (lastTab) {
+            var tabEl = document.querySelector('button[data-bs-target="' + lastTab + '"]');
+            if (tabEl) {
+                var tab = new bootstrap.Tab(tabEl);
+                tab.show();
+            }
+        }
+        var semuaTab = document.querySelectorAll('button[data-bs-toggle="tab"]');
+        semuaTab.forEach(function(el) {
+            el.addEventListener('shown.bs.tab', function (event) {
+                var namaTabAktif = event.target.getAttribute('data-bs-target');
+                localStorage.setItem('tabDasborAuditor', namaTabAktif);
+            });
+        });
+    });
+</script>
+
+</body>
+</html>

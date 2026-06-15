@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Curator Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light pb-5">
+
+<nav class="navbar navbar-dark bg-dark mb-4 shadow">
+    <div class="container">
+        <span class="navbar-brand mb-0 h1">🔎 Curator Dashboard</span>
+        <div class="d-flex gap-3">
+            <span class="navbar-text text-light me-3">Active Curator: <strong>{{ nama_petugas }}</strong></span>
+            <a href="/logout" class="btn btn-danger btn-sm fw-bold">Logout</a>
+        </div>
+    </div>
+</nav>
+
+<div class="container">
+    <!-- Filter Section -->
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body bg-white rounded">
+            <form method="GET" action="/curator" class="row g-3 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label fw-bold text-muted">Select Month</label>
+                    <select name="bulan" class="form-select border-primary fw-bold">
+                        <option value="all" {% if bulan_terpilih == 'all' %}selected{% endif %}>All Months</option>
+                        <option value="01" {% if bulan_terpilih == '01' %}selected{% endif %}>January</option>
+                        <option value="02" {% if bulan_terpilih == '02' %}selected{% endif %}>February</option>
+                        <option value="03" {% if bulan_terpilih == '03' %}selected{% endif %}>March</option>
+                        <option value="04" {% if bulan_terpilih == '04' %}selected{% endif %}>April</option>
+                        <option value="05" {% if bulan_terpilih == '05' %}selected{% endif %}>May</option>
+                        <option value="06" {% if bulan_terpilih == '06' %}selected{% endif %}>June</option>
+                        <option value="07" {% if bulan_terpilih == '07' %}selected{% endif %}>July</option>
+                        <option value="08" {% if bulan_terpilih == '08' %}selected{% endif %}>August</option>
+                        <option value="09" {% if bulan_terpilih == '09' %}selected{% endif %}>September</option>
+                        <option value="10" {% if bulan_terpilih == '10' %}selected{% endif %}>October</option>
+                        <option value="11" {% if bulan_terpilih == '11' %}selected{% endif %}>November</option>
+                        <option value="12" {% if bulan_terpilih == '12' %}selected{% endif %}>December</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-bold text-muted">Select Year</label>
+                    <select name="tahun" class="form-select border-primary fw-bold">
+                        <option value="all" {% if tahun_terpilih == 'all' %}selected{% endif %}>All Years</option>
+                        {% for thn in tahun_tersedia %}
+                        <option value="{{ thn }}" {% if tahun_terpilih == thn %}selected{% endif %}>{{ thn }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4 d-grid">
+                    <button type="submit" class="btn btn-primary fw-bold">🔍 Apply Filter</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- DAILY QUEUE (Collector & Sorter) -->
+    <div class="card shadow-sm border-0 mb-5">
+        <div class="card-header bg-dark text-white pt-3 pb-2 border-0">
+            <h5 class="mb-0 fw-bold">📅 Daily Cleanup Queue (Collector & Sorter)</h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0 text-center">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="py-3">Report Date</th>
+                            <th>Collector</th>
+                            <th>Sorter</th>
+                            <th>Last Curated By</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in batches_harian %}
+                        <tr class="{% if item.data.status == 'Disetujui' %}table-success opacity-75{% elif item.data.status == 'Perlu_Revisi' %}table-danger{% endif %}">
+                            <td class="fw-bold">{{ item.data.tanggal.strftime('%d %B %Y') }}</td>
+                            <td class="text-primary fw-bold">{{ item.pengirim_kolektor }}</td>
+                            <td class="text-primary fw-bold">{{ item.pengirim_sorter }}</td>
+                            <td class="text-muted">{{ item.kurator }}</td>
+                            <td>
+                                {% if item.data.status == 'Menunggu_Kurasi' %}
+                                    <span class="badge bg-warning text-dark px-3 py-2">⏳ Awaiting Curation</span>
+                                {% elif item.data.status == 'Perlu_Revisi' %}
+                                    <span class="badge bg-danger px-3 py-2">❌ Needs Revision</span>
+                                {% elif item.data.status == 'Disetujui' %}
+                                    <span class="badge bg-success px-3 py-2">✅ Approved</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="/curator/inspect/{{ item.data.id_batch }}" class="btn btn-sm btn-dark fw-bold px-3">🔎 Inspect</a>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="6" class="text-center py-5 text-muted">
+                                <h5>No daily reports submitted for the selected period.</h5>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- PRESSER QUEUE (Independent Bales) -->
+    <div class="card shadow-sm border-0 mb-5">
+        <div class="card-header bg-primary text-white pt-3 pb-2 border-0">
+            <h5 class="mb-0 fw-bold">📦 Presser Queue (Bale Production)</h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0 text-center">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="py-3">Bale Code</th>
+                            <th>Press Date</th>
+                            <th>Presser</th>
+                            <th>Last Curated By</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in batches_presser %}
+                        <tr class="{% if item.data.status == 'Disetujui' %}table-success opacity-75{% elif item.data.status == 'Perlu_Revisi' %}table-danger{% endif %}">
+                            <td class="fw-bold text-primary fs-5">{{ item.data.id_batch }}</td>
+                            <td class="fw-bold">{{ item.data.tanggal.strftime('%d %B %Y') }}</td>
+                            <td class="text-primary fw-bold">{{ item.pengirim_presser }}</td>
+                            <td class="text-muted">{{ item.kurator }}</td>
+                            <td>
+                                {% if item.data.status == 'Menunggu_Kurasi' %}
+                                    <span class="badge bg-warning text-dark px-3 py-2">⏳ Awaiting Curation</span>
+                                {% elif item.data.status == 'Perlu_Revisi' %}
+                                    <span class="badge bg-danger px-3 py-2">❌ Needs Revision</span>
+                                {% elif item.data.status == 'Disetujui' %}
+                                    <span class="badge bg-success px-3 py-2">✅ Approved</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="/curator/inspect/{{ item.data.id_batch }}" class="btn btn-sm btn-outline-primary fw-bold px-3">🔎 Inspect</a>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="6" class="text-center py-5 text-muted">
+                                <h5>No bale production data submitted for the selected period.</h5>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

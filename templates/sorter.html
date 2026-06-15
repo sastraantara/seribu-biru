@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dasbor Sorter - Sortiran Kategori</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .baris-pilih {
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .baris-pilih:hover {
+            background-color: #e8f5e9 !important;
+        }
+        .modal-table-container {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .sticky-thead th {
+            position: sticky;
+            top: 0;
+            background-color: #f8f9fa;
+            z-index: 2;
+            box-shadow: 0 1px 1px rgba(0,0,0,0.05);
+        }
+    </style>
+</head>
+<body class="bg-light">
+
+<div class="container mt-4 mb-5">
+    <div class="card shadow-sm border-success">
+        <div class="card-header bg-success text-white">
+            <h4 class="mb-0">Form Pelaporan Sorter (Pemilahan Kategori)</h4>
+        </div>
+        <div class="card-body">
+            
+            <div class="alert alert-success d-flex justify-content-between align-items-center mb-4 shadow-sm">
+                <strong>Halo, {{ nama_petugas }}! Selamat bertugas memilah sampah.</strong>
+                <a href="/logout" class="btn btn-sm btn-outline-danger bg-white fw-bold">Ganti Akun</a>
+            </div>
+
+            {% if tanggal_terakhir %}
+            <div class="alert alert-info border-info shadow-sm mb-4">
+                <strong>📥 Info Sampah Masuk Terkini:</strong> Data lapangan terakhir yang disetorkan adalah untuk tanggal kegiatan: <span class="badge bg-primary fs-6">{{ tanggal_terakhir }}</span>.
+                <hr class="my-2 border-info opacity-50">
+                <div class="d-flex justify-content-between align-items-center flex-wrap">
+                    <span class="text-dark small">🧑‍🌾 Disetor oleh: <strong>{{ teks_penyetor }}</strong></span>
+                    <span class="text-dark small">⚖️ Total Berat: <strong><span class="text-danger fw-bold">{{ "%.2f"|format(total_kg_terakhir) }} Kg</span></strong></span>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if list_revisi %}
+            <div class="alert alert-danger shadow border-danger mb-4">
+                <h5 class="fw-bold alert-heading text-danger">⚠️ Perhatian: Ada Data yang Ditolak Kurator!</h5>
+                <p class="mb-2 text-dark">Silakan perbaiki data sortiran untuk tanggal di bawah ini:</p>
+                <hr class="border-danger">
+                <ul class="mb-0 text-dark">
+                    {% for revisi in list_revisi %}
+                    <li class="mb-2">
+                        <strong>Tanggal Kegiatan:</strong> <span class="badge bg-dark fs-6">{{ revisi.id_batch }}</span><br>
+                        <strong>Catatan REVISI Kurator:</strong> <em class="text-danger fw-bold">"{{ revisi.catatan }}"</em>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+
+            <form action="/submit_sorter" method="POST" enctype="multipart/form-data">
+                
+                <div class="mb-4 bg-light p-4 border rounded shadow-sm">
+                    <label class="form-label fw-bold text-success fs-5 mb-3">Pilih Tanggal Antrean Sortiran</label>
+                    <input type="hidden" name="tanggal_kegiatan" id="tanggal_kegiatan_hidden" required>
+                    
+                    <div class="d-flex align-items-center gap-3 flex-wrap">
+                        <button type="button" class="btn btn-success btn-lg fw-bold px-4" data-bs-toggle="modal" data-bs-target="#modalPilihTanggal">
+                            🔍 Cari & Pilih Tanggal
+                        </button>
+                        
+                        <div class="fs-5 fw-bold text-dark" style="display: inline-block;">
+                            Status Pilihan: <span id="textTanggalTerpilih" class="text-danger">Belum Ada Tanggal Terpilih ❌</span>
+                        </div>
+                    </div>
+
+                    <div id="detailKolektorBox" class="mt-4 d-none">
+                        <div class="card border-warning shadow-sm">
+                            <div class="card-header bg-warning text-dark py-2 fw-bold" style="font-size: 0.9rem;">
+                                📋 Rincian Setoran Lapangan Pada Tanggal Tersebut:
+                            </div>
+                            <ul class="list-group list-group-flush" id="listDetailKolektor">
+                                </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <hr class="my-4 border-success opacity-25">
+
+                <h5 class="mb-3 text-success fw-bold">1. Dokumentasi Aktivitas Sortiran</h5>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Foto Anggota Sorter Sedang Bekerja</label>
+                        <input class="form-control" type="file" name="foto_bekerja" accept="image/*" multiple required>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Foto Seluruh Karung Hasil Sortiran</label>
+                        <input class="form-control" type="file" name="foto_seluruh_karung" accept="image/*" multiple required>
+                    </div>
+                </div>
+
+                <hr class="my-4 border-success opacity-25">
+
+                <h5 class="mb-3 text-success fw-bold">2. Input Berat Per Kategori (Kg)</h5>
+                <p class="text-muted small mb-4">Abaikan atau biarkan kosong jika tidak ada sampah jenis tersebut pada hari ini.</p>
+                
+                <div class="row g-3">
+                    {% for k in daftar_kategori %}
+                    <div class="col-md-4 mb-2">
+                        <div class="card h-100 border-success border-opacity-25 shadow-sm">
+                            <div class="card-body p-3">
+                                <label class="form-label fw-bold text-dark mb-2">{{ k.nama_kategori }}</label>
+                                <input type="number" step="0.01" class="form-control mb-2 border-success border-opacity-50" 
+                                       name="kategori_{{ k.id }}" placeholder="0.00 Kg">
+                                
+                                <label class="form-label small text-muted mb-1 mt-2">Foto Karung</label>
+                                <input class="form-control form-control-sm" type="file" 
+                                       name="foto_karung_{{ k.id }}" accept="image/*" multiple>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <div class="d-grid gap-2 mt-5 shadow-sm">
+                    <button type="submit" class="btn btn-success btn-lg fw-bold">Kirim Laporan Sorter</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalPilihTanggal" tabindex="-1" aria-labelledby="modalPilihTanggalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title" id="modalPilihTanggalLabel">📋 Pilih Tanggal Antrean Sampah Masuk</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0">
+                
+                <div class="row g-2 p-3 bg-light border-bottom">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold text-muted small mb-1">Saring Berdasarkan Tahun:</label>
+                        <select id="filterTahun" class="form-select border-success fw-bold">
+                            <option value="">-- Semua Tahun --</option>
+                            <option value="2024">2024</option>
+                            <option value="2025">2025</option>
+                            <option value="2026" selected>2026</option> 
+                            <option value="2027">2027</option>
+                            <option value="2028">2028</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold text-muted small mb-1">Saring Berdasarkan Bulan:</label>
+                        <select id="filterBulan" class="form-select border-success fw-bold">
+                            <option value="">-- Semua Bulan --</option>
+                            <option value="-01-">Januari</option>
+                            <option value="-02-">Februari</option>
+                            <option value="-03-">Maret</option>
+                            <option value="-04-">April</option>
+                            <option value="-05-">Mei</option>
+                            <option value="-06-">Juni</option>
+                            <option value="-07-">Juli</option>
+                            <option value="-08-">Agustus</option>
+                            <option value="-09-">September</option>
+                            <option value="-10-">Oktober</option>
+                            <option value="-11-">November</option>
+                            <option value="-12-">Desember</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="modal-table-container">
+                    <table class="table table-striped mb-0 text-center align-middle" id="tabelTanggalModal">
+                        <thead class="table-light sticky-thead">
+                            <tr>
+                                <th width="25%">Tanggal Masuk</th>
+                                <th width="25%">Status Pengerjaan</th>
+                                <th width="25%">Jml Setoran Lapangan</th>
+                                <th width="25%">Total Berat Kotor</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for rekap in rekap_tanggal %}
+                            <tr class="baris-pilih" onclick="pilihTanggalAksi('{{ rekap.tanggal }}', '{{ '%.2f'|format(rekap.total_kg_kolektor) }}')">
+                                <td class="fw-bold text-primary tgl-sel">📅 {{ rekap.tanggal }}</td>
+                                
+                                <td>
+                                    {% if rekap.tanggal in sudah_disortir %}
+                                        <span class="badge bg-success border border-success p-2">✅ Sudah Disortir</span>
+                                    {% else %}
+                                        <span class="badge bg-warning text-dark border border-warning p-2 shadow-sm">⏳ Menunggu Sortiran</span>
+                                    {% endif %}
+                                </td>
+
+                                <td><span class="badge bg-secondary">{{ rekap.jumlah_petugas }} Kolektor</span></td>
+                                <td class="fw-bold text-danger">{{ "%.2f"|format(rekap.total_kg_kolektor) }} Kg</td>
+                            </tr>
+                            {% else %}
+                            <tr id="barisKosong"><td colspan="4" class="text-muted py-4">Belum ada sampah yang masuk dari Kolektor.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer bg-light py-2">
+                <small class="text-muted w-100 text-center" id="infoPencarianModal">Pilih tanggal yang berstatus "Menunggu Sortiran". Jika Anda memilih tanggal yang sudah disortir, data lama akan tertimpa (dianggap revisi).</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+    const detailData = {{ detail_kolektor | tojson | safe }};
+
+    function pilihTanggalAksi(tanggal, totalKg) {
+        document.getElementById('tanggal_kegiatan_hidden').value = tanggal;
+        
+        document.getElementById('textTanggalTerpilih').innerHTML = `
+            <span class="badge bg-success fs-5">✅ Terpilih: ${tanggal} (${totalKg} Kg)</span>
+        `;
+        
+        const listDetail = document.getElementById('listDetailKolektor');
+        const boxDetail = document.getElementById('detailKolektorBox');
+        listDetail.innerHTML = '';
+
+        if(detailData[tanggal]) {
+            detailData[tanggal].forEach(item => {
+                const li = document.createElement('li');
+                li.className = 'list-group-item d-flex justify-content-between align-items-center bg-white py-2';
+                li.innerHTML = `
+                    <div>
+                        <span class="fw-bold text-dark">🧑‍🌾 ${item.nama}</span>
+                        <small class="text-muted d-block" style="font-size: 0.8rem;">🕒 Jam Masuk: ${item.waktu}</small>
+                    </div>
+                    <span class="badge bg-warning text-dark rounded-pill fw-bold fs-6">${item.berat} Kg</span>
+                `;
+                listDetail.appendChild(li);
+            });
+            boxDetail.classList.remove('d-none');
+        }
+
+        const modalElement = document.getElementById('modalPilihTanggal');
+        const modalInstance = bootstrap.Modal.getInstance(modalElement);
+        if (modalInstance) {
+            modalInstance.hide();
+        }
+    }
+
+    const selectTahun = document.getElementById('filterTahun');
+    const selectBulan = document.getElementById('filterBulan');
+
+    function saringTabelBerdasarkanDropdown() {
+        let tahun = selectTahun.value;
+        let bulan = selectBulan.value;
+        
+        let rows = document.querySelectorAll('#tabelTanggalModal tbody tr');
+        let dataDitemukan = 0;
+
+        rows.forEach(row => {
+            if(row.id !== 'barisKosong') {
+                let teksBaris = row.querySelector('.tgl-sel') ? row.querySelector('.tgl-sel').textContent : "";
+                
+                let cocokTahun = (tahun === "") ? true : teksBaris.includes(tahun + "-");
+                let cocokBulan = (bulan === "") ? true : teksBaris.includes(bulan);
+
+                if (cocokTahun && cocokBulan) {
+                    row.style.display = "";
+                    dataDitemukan++;
+                } else {
+                    row.style.display = "none";
+                }
+            }
+        });
+
+        let info = document.getElementById('infoPencarianModal');
+        if (tahun === "" && bulan === "") {
+            info.innerHTML = "Menampilkan semua data dari seluruh waktu.";
+        } else if (dataDitemukan > 0) {
+            info.innerHTML = `Menemukan <strong>${dataDitemukan}</strong> tanggal pada periode tersebut.`;
+        } else {
+            info.innerHTML = `<span class="text-danger fw-bold">Tidak ada sampah masuk pada periode tersebut.</span>`;
+        }
+    }
+
+    selectTahun.addEventListener('change', saringTabelBerdasarkanDropdown);
+    selectBulan.addEventListener('change', saringTabelBerdasarkanDropdown);
+    
+    saringTabelBerdasarkanDropdown();
+</script>
+
+<div id="loadingOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 9999; flex-direction: column; justify-content: center; align-items: center; color: white;">
+    <div class="spinner-border text-success mb-3" role="status" style="width: 4rem; height: 4rem; border-width: 0.4rem;"></div>
+    <h3 class="fw-bold text-success">Mengunggah Data...</h3>
+    <p class="text-light">Mohon tunggu dan jangan menutup/menyegarkan halaman ini.</p>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        var forms = document.querySelectorAll('form');
+        forms.forEach(function(form) {
+            form.addEventListener('submit', function(event) {
+                // ========================================================
+                // 1. VALIDASI WAJIB FOTO (JIKA BERAT > 0)
+                // ========================================================
+                let validasiLolos = true;
+                let pesanError = "";
+                let elemenFokus = null;
+
+                // Mencari semua kotak input berat (kategori_1, kategori_2, dst)
+                let inputBerats = form.querySelectorAll('input[type="number"][name^="kategori_"]');
+                
+                for (let i = 0; i < inputBerats.length; i++) {
+                    let inputBerat = inputBerats[i];
+                    let nilaiBerat = parseFloat(inputBerat.value);
+
+                    // Jika ada kategori yang diisi beratnya lebih dari 0 Kg
+                    if (!isNaN(nilaiBerat) && nilaiBerat > 0) {
+                        // Ambil ID Kategorinya (Contoh: "kategori_3" -> "3")
+                        let idKat = inputBerat.name.split('_')[1];
+                        
+                        // Cari pasangan input fotonya untuk Sorter (foto_karung_3)
+                        let inputFile = form.querySelector('input[type="file"][name="foto_karung_' + idKat + '"]');
+                        
+                        // Jika input fotonya kosong (tidak ada file yang dipilih)
+                        if (inputFile && inputFile.files.length === 0) {
+                            validasiLolos = false;
+                            pesanError = "⚠️ FOTO KARUNG WAJIB DIUNGGAH!\n\nAnda memasukkan angka " + nilaiBerat + " Kg pada salah satu kategori material, tetapi Anda belum melampirkan foto karungnya.\n\nSilakan unggah foto untuk kategori tersebut sebelum mengirim laporan.";
+                            elemenFokus = inputFile;
+                            break; // Hentikan pencarian, langsung tegur petugas
+                        }
+                    }
+                }
+
+                // Jika validasi gagal, batalkan proses pengiriman form
+                if (!validasiLolos) {
+                    event.preventDefault(); // Mencegah tombol submit bekerja
+                    alert(pesanError); // Munculkan pop-up peringatan
+                    if (elemenFokus) {
+                        elemenFokus.focus(); // Arahkan layar petugas langsung ke kotak foto yang kosong
+                    }
+                    return; // Berhenti di sini, jangan munculkan layar hitam loading
+                }
+
+                // ========================================================
+                // 2. MUNCULKAN LAYAR LOADING OVERLAY JIKA SEMUA VALID
+                // ========================================================
+                document.getElementById('loadingOverlay').style.display = 'flex';
+                var submitBtn = form.querySelector('button[type="submit"]');
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.innerHTML = 'Memproses... ⏳';
+                }
+            });
+        });
+    });
+</script>
+
+</body>
+</html>

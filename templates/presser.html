@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dasbor Presser - Pelaporan Cleanup</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+
+<div class="container mt-4 mb-5">
+    <div class="card shadow-sm border-warning">
+        <div class="card-header bg-warning text-dark fw-bold">
+            <h4 class="mb-0">Form Pelaporan Mesin Press (Independen)</h4>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-warning d-flex justify-content-between align-items-center mb-4 shadow-sm border-warning">
+                <strong>Halo, {{ nama_petugas }}! Selamat bertugas di fasilitas press.</strong>
+                <a href="/logout" class="btn btn-sm btn-outline-danger bg-white fw-bold">Ganti Akun</a>
+            </div>
+
+            {% if list_revisi %}
+            <div class="alert alert-danger shadow border-danger mb-4">
+                <h5 class="fw-bold alert-heading text-danger">⚠️ Perhatian: Ada Data yang Ditolak Kurator!</h5>
+                <p class="mb-2 text-dark">Silakan perbaiki data dan lakukan submit ulang untuk Kode Karung di bawah ini:</p>
+                <hr class="border-danger">
+                <ul class="mb-0 text-dark">
+                    {% for revisi in list_revisi %}
+                    <li class="mb-2">
+                        <strong>Kode Karung:</strong> <span class="badge bg-dark fs-6">{{ revisi.kode_karung }}</span><br>
+                        <strong>Catatan REVISI Kurator:</strong> <em class="text-danger fw-bold">"{{ revisi.catatan }}"</em>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+
+            <form action="/submit_presser" method="POST" enctype="multipart/form-data">
+                
+                <div class="row bg-light p-3 border rounded shadow-sm mb-4">
+                    <div class="col-md-6 mb-3 mb-md-0">
+                        <label class="form-label fw-bold text-dark fs-5">Tanggal Pengepresan</label>
+                        <input type="date" name="tanggal_kegiatan" class="form-control form-control-lg border-warning" required>
+                        <small class="text-muted d-block mt-1">Pilih tanggal saat karung bal ini selesai diproses.</small>
+                    </div>
+                    <!-- ========================================== -->
+                    <!-- UPDATE: KOLOM KODE KARUNG MENJADI OPSIONAL -->
+                    <!-- ========================================== -->
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold text-dark fs-5">Kode Karung Bal <span class="text-danger fs-6">(KOSONGKAN JIKA BARU)</span></label>
+                        <input type="text" name="kode_karung" class="form-control form-control-lg border-primary text-uppercase fw-bold" placeholder="Sistem akan membuat ID Karung otomatis (Misal: GP-260612-01)">
+                        <small class="text-muted d-block mt-1">
+                            <em>*Hanya isi kolom ini jika Kurator menolak laporan Anda dan Anda ingin melakukan <b>REVISI</b> dengan mengetik manual kode yang ditolak.</em>
+                        </small>
+                    </div>
+                </div>
+
+                <hr class="my-4 border-warning opacity-50">
+
+                <h5 class="mb-3 text-dark fw-bold">1. Dokumentasi Area Pressing</h5>
+                <div class="mb-3 p-3 bg-white border border-warning rounded shadow-sm">
+                    <label class="form-label fw-bold">Upload Foto Saat Mengoperasikan Mesin Pres</label>
+                    <input class="form-control" type="file" name="foto_bekerja" accept="image/*" multiple required>
+                    <small class="text-muted mt-1 d-block">Sertakan foto petugas bersama mesin press yang sedang berjalan.</small>
+                </div>
+
+                <hr class="my-4 border-warning opacity-50">
+
+                <h5 class="mb-3 text-dark fw-bold">2. Detail Isi dan Berat Karung Bal (Kg)</h5>
+                <div class="alert alert-secondary small text-dark border-secondary">
+                    ℹ️ <strong>Petunjuk:</strong> Isi angka berat (Kg) dan upload foto pada kategori material yang Anda proses. Sistem akan <strong>otomatis memisahkan</strong> setiap kategori menjadi karung/batch yang berdiri sendiri. Biarkan yang lain kosong.
+                </div>
+                
+                <div class="row g-3">
+                    {% for k in daftar_kategori %}
+                    <div class="col-md-6 col-lg-4 mb-2">
+                        <div class="card h-100 border-warning border-opacity-50 shadow-sm">
+                            <div class="card-body p-3 bg-white">
+                                <label class="form-label fw-bold text-dark mb-2">{{ k.nama_kategori }}</label>
+                                <div class="input-group mb-2">
+                                    <input type="number" step="0.01" class="form-control border-warning" name="kategori_{{ k.id }}" placeholder="0.00" min="0">
+                                    <span class="input-group-text bg-warning text-dark fw-bold border-warning">Kg</span>
+                                </div>
+                                
+                                <label class="form-label small text-muted mb-1 mt-2 fw-bold">Foto Karung Bal {{ k.nama_kategori }}</label>
+                                <input class="form-control form-control-sm border-secondary" type="file" name="foto_bal_{{ k.id }}" accept="image/*" multiple>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <div class="d-grid gap-2 mt-5 shadow-sm">
+                    <button type="submit" class="btn btn-warning btn-lg text-dark fw-bold fs-5">Kirim Laporan Presser</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<div id="loadingOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 9999; flex-direction: column; justify-content: center; align-items: center; color: white;">
+    <div class="spinner-border text-warning mb-3" role="status" style="width: 4rem; height: 4rem; border-width: 0.4rem;"></div>
+    <h3 class="fw-bold text-warning">Mengunggah Data...</h3>
+    <p class="text-light">Mohon tunggu dan jangan menutup/menyegarkan halaman ini.</p>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        var forms = document.querySelectorAll('form');
+        forms.forEach(function(form) {
+            form.addEventListener('submit', function(event) {
+                // ========================================================
+                // 1. VALIDASI WAJIB FOTO (JIKA BERAT > 0)
+                // ========================================================
+                let validasiLolos = true;
+                let pesanError = "";
+                let elemenFokus = null;
+
+                // Mencari semua kotak input berat (kategori_1, kategori_2, dst)
+                let inputBerats = form.querySelectorAll('input[type="number"][name^="kategori_"]');
+                
+                for (let i = 0; i < inputBerats.length; i++) {
+                    let inputBerat = inputBerats[i];
+                    let nilaiBerat = parseFloat(inputBerat.value);
+
+                    // Jika ada kategori yang diisi beratnya lebih dari 0 Kg
+                    if (!isNaN(nilaiBerat) && nilaiBerat > 0) {
+                        // Ambil ID Kategorinya (Contoh: "kategori_3" -> "3")
+                        let idKat = inputBerat.name.split('_')[1];
+                        
+                        // Cari pasangan input fotonya untuk Presser (foto_bal_3)
+                        let inputFile = form.querySelector('input[type="file"][name="foto_bal_' + idKat + '"]');
+                        
+                        // Jika input fotonya kosong (tidak ada file yang dipilih)
+                        if (inputFile && inputFile.files.length === 0) {
+                            validasiLolos = false;
+                            pesanError = "⚠️ FOTO KARUNG BAL WAJIB DIUNGGAH!\n\nAnda memasukkan angka " + nilaiBerat + " Kg pada salah satu kategori material, tetapi Anda belum melampirkan foto karung bal-nya.\n\nSilakan unggah foto untuk kategori tersebut sebelum mengirim laporan.";
+                            elemenFokus = inputFile;
+                            break; // Hentikan pencarian, langsung tegur petugas
+                        }
+                    }
+                }
+
+                // Jika validasi gagal, batalkan proses pengiriman form
+                if (!validasiLolos) {
+                    event.preventDefault(); // Mencegah tombol submit bekerja
+                    alert(pesanError); // Munculkan pop-up peringatan
+                    if (elemenFokus) {
+                        elemenFokus.focus(); // Arahkan layar petugas langsung ke kotak foto yang kosong
+                    }
+                    return; // Berhenti di sini, jangan munculkan layar hitam loading
+                }
+
+                // ========================================================
+                // 2. MUNCULKAN LAYAR LOADING OVERLAY JIKA SEMUA VALID
+                // ========================================================
+                document.getElementById('loadingOverlay').style.display = 'flex';
+                var submitBtn = form.querySelector('button[type="submit"]');
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.innerHTML = 'Memproses... ⏳';
+                }
+            });
+        });
+    });
+
+    // Memaksa browser mengosongkan form (termasuk unggahan foto) setiap kali halaman dimuat
+    window.onload = function() {
+        var forms = document.getElementsByTagName('form');
+        for (var i = 0; i < forms.length; i++) {
+            forms[i].reset();
+        }
+    };
+</script>
+
+</body>
+</html>
