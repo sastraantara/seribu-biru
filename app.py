@@ -39,6 +39,7 @@ DAFTAR_PETUGAS = {
     "EBI": {"nama": "Pak Ebi", "role": ["Kolektor", "Presser"]},
     "DARTI": {"nama": "Bu Darti", "role": ["Sorter", "Presser"]},
     "AISYAH": {"nama": "Bu Aisyah", "role": ["Sorter", "Presser"]},
+    "IJAN": {"nama": "Pak Ijan", "role": ["Sorter", "Presser", "Kolektor"]},
     "QQ001": {
         "nama": "Rizqi", 
         "role": ["Kolektor", "Sorter", "Presser", "Curator", "Auditor", "Performa","Gudang"]
