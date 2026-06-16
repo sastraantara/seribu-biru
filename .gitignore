@@ -3,4 +3,8 @@ instance/
 pelaporan.db
 
 # Mengabaikan folder unggahan foto
+<<<<<<< HEAD
 static/uploads/
+=======
+static/uploads/
+>>>>>>> ff09b25d60f80e20408915f6b3b6233915edf49a
