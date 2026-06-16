@@ -1,0 +1,6 @@
+# Mengabaikan database
+instance/
+pelaporan.db
+
+# Mengabaikan folder unggahan foto
+static/uploads/

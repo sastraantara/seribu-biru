@@ -1,5 +1,0 @@
-__pycache__/
-instance/
-pelaporan.db
-static/uploads/*
-!static/uploads/.gitkeep
