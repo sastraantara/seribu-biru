@@ -1,4 +1,6 @@
-beyondnv3
-beyondy63
-beyondjs9
-beyondN2E
+# Mengabaikan database
+instance/
+pelaporan.db
+
+# Mengabaikan folder unggahan foto
+static/uploads/
