@@ -24,6 +24,17 @@
         <strong>Hello, {{ nama_petugas }}!</strong> Here is the <em>real-time</em> status of bale stock and work-in-progress materials approved by the Curator.
     </div>
 
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }} alert-dismissible fade show shadow-sm fw-bold border-{{ category }} mb-4" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
     <div class="row mb-4">
         <div class="col-md-4 mb-3">
             <div class="card shadow-sm border-warning h-100" style="border-width: 2px;">
@@ -122,6 +133,7 @@
                             <th>Weight (Kg)</th>
                             <th>Warehouse Status</th>
                             <th>Buyer (Destination)</th>
+                            <th>Note / Keterangan</th>
                             <th>Release Date</th>
                             <th>Action</th>
                         </tr>
@@ -143,6 +155,13 @@
                             <td>
                                 {% if item.status_stok == 'Terjual' %}
                                     <strong class="text-success">{{ item.pembeli }}</strong>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if item.status_stok == 'Terjual' %}
+                                    <span class="small text-muted fst-italic">{{ item.catatan_jual }}</span>
                                 {% else %}
                                     <span class="text-muted">-</span>
                                 {% endif %}
@@ -171,7 +190,7 @@
                         </tr>
                         {% else %}
                         <tr>
-                            <td colspan="8" class="text-center py-5 text-muted">No pressed bales have entered the warehouse yet (New bales must be approved by the Curator first).</td>
+                            <td colspan="9" class="text-center py-5 text-muted">No pressed bales have entered the warehouse yet (New bales must be approved by the Curator first).</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -198,7 +217,10 @@
                     
                     <div class="mb-3">
                         <label class="form-label fw-bold">Buyer Name / Destination Company:</label>
-                        <input type="text" name="pembeli" class="form-control border-success form-control-lg" placeholder="Example: Plastic Recycling Inc." required>
+                        <input type="text" name="pembeli" class="form-control border-success form-control-lg mb-3" placeholder="Example: Plastic Recycling Inc." required>
+                        
+                        <label class="form-label fw-bold">Additional Note / Keterangan (Opsional):</label>
+                        <textarea name="catatan_jual" class="form-control border-success" rows="2" placeholder="Contoh: Diambil oleh truk Nopol B 1234 CD, lunas transfer."></textarea>
                     </div>
                 </div>
                 <div class="modal-footer bg-light">

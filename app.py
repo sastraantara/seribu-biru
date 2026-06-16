@@ -1,29 +1,15 @@
 import os
-from flask import Flask, render_template, request, redirect, url_for, flash, Response, session, jsonify
-from werkzeug.utils import secure_filename
-from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime
-from PIL import Image
-from PIL.ExifTags import TAGS, GPSTAGS
-import os
 import csv
-from sqlalchemy import func, case
-from io import StringIO
-from flask import Flask, render_template, request, redirect, url_for, flash, Response
+import zipfile
+from io import StringIO, BytesIO
+from datetime import datetime, timedelta
+
 from flask import Flask, render_template, request, redirect, url_for, flash, Response, session, jsonify, send_file
 from werkzeug.utils import secure_filename
-from datetime import datetime, timedelta
-from io import StringIO, BytesIO
-import zipfile
-import os
-from io import BytesIO
-import zipfile
-from flask import send_file, flash, redirect, url_for
-import os
-from io import BytesIO
-import zipfile
-from flask import send_file, flash, redirect, url_for
-# ... (impor lainnya tetap sama) ...
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import func, case, or_
+from PIL import Image
+from PIL.ExifTags import TAGS, GPSTAGS
 
 # Menginisialisasi aplikasi Flask
 app = Flask(__name__)
@@ -40,8 +26,6 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 db = SQLAlchemy(app)
-
-import os
 
 with app.app_context():
     print("DATABASE =", db.engine.url.database)
@@ -88,7 +72,7 @@ class Batch(db.Model):
     status_sorter = db.Column(db.String(20), default='Pending')
     status_presser = db.Column(db.String(20), default='Pending')
     
-# Tambahkan relasi ini agar penghapusan Batch menghapus semua data terkait
+    # Relasi penghapusan Batch menghapus semua data terkait
     laporan_kolektor = db.relationship('LaporanKolektor', backref='batch', lazy=True, cascade="all, delete-orphan")
     laporan_sorter = db.relationship('LaporanSorter', backref='batch', lazy=True, cascade="all, delete-orphan")
     laporan_presser = db.relationship('LaporanPresser', backref='batch', lazy=True, cascade="all, delete-orphan")
@@ -127,8 +111,8 @@ class FotoDokumentasi(db.Model):
     bagian = db.Column(db.String(20)) # 'kolektor', 'sorter', atau 'presser'
     kategori_foto = db.Column(db.String(50)) # 'sebelum', 'saat', 'bekerja', dll
     path_foto = db.Column(db.String(255))
-    is_approved = db.Column(db.Boolean, default=False) # Kurator pilih ini
-    is_selected = db.Column(db.Boolean, default=False) # Untuk foto kategori (karung/press), pilih yang ini sebagai representasi
+    is_approved = db.Column(db.Boolean, default=False) 
+    is_selected = db.Column(db.Boolean, default=False) 
 
 # 4. Tabel Laporan: Sorter
 class LaporanSorter(db.Model):
@@ -139,7 +123,7 @@ class LaporanSorter(db.Model):
     foto_bekerja = db.Column(db.String(255))
     foto_seluruh_karung = db.Column(db.String(255))
 
-# 5. Tabel Detail Sortiran (Menyimpan input berat per kategori)
+# 5. Tabel Detail Sortiran 
 class DetailSortiran(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     id_sorter = db.Column(db.Integer, db.ForeignKey('laporan_sorter.id'), nullable=False)
@@ -155,7 +139,7 @@ class LaporanPresser(db.Model):
     foto_bekerja = db.Column(db.String(255))
     foto_seluruh_press = db.Column(db.String(255))
 
-# 7. Tabel Detail Presser (TAMBAHKAN KODE INI)
+# 7. Tabel Detail Presser 
 class DetailPresser(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     id_presser = db.Column(db.Integer, db.ForeignKey('laporan_presser.id'), nullable=False)
@@ -164,40 +148,26 @@ class DetailPresser(db.Model):
 
 class FotoKategori(db.Model):
     __tablename__ = 'foto_kategori'
-
     id = db.Column(db.Integer, primary_key=True)
-
     jenis = db.Column(db.String(20), nullable=False)
-    # sorter / presser
-
     id_detail = db.Column(db.Integer, nullable=False)
-
     path_foto = db.Column(db.String(255), nullable=False)
-
-    is_selected = db.Column(
-        db.Boolean,
-        default=False
-    )
-
-    uploaded_at = db.Column(
-        db.DateTime,
-        default=datetime.utcnow
-    )
+    is_selected = db.Column(db.Boolean, default=False)
+    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class LogRiwayat(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     id_batch = db.Column(db.String(50), db.ForeignKey('batch.id_batch'), nullable=False)
     waktu = db.Column(db.DateTime, default=datetime.utcnow)
-    aktor = db.Column(db.String(100)) # Nama petugas / Kurator
-    aksi = db.Column(db.String(100))  # Submit Awal, Revisi, Approved, Rejected
+    aktor = db.Column(db.String(100)) 
+    aksi = db.Column(db.String(100))  
     catatan = db.Column(db.Text, nullable=True)
 
-    # Otomatis konversi waktu database (UTC) ke WIB saat dipanggil di HTML
     @property
     def waktu_wib(self):
         return self.waktu + timedelta(hours=7)
 
-# 8. Tabel Khusus Rekam Jejak Penghapusan (Tidak terikat ForeignKey)
+# 8. Tabel Khusus Rekam Jejak Penghapusan
 class RiwayatHapus(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     id_batch = db.Column(db.String(50)) 
@@ -209,13 +179,14 @@ class RiwayatHapus(db.Model):
     def waktu_wib(self):
         return self.waktu_hapus + timedelta(hours=7)
     
-# 7b. Tabel Data Gudang (Inventory Penjualan)
+# 9. Tabel Data Gudang (Inventory Penjualan)
 class DataGudang(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     id_batch = db.Column(db.String(50), db.ForeignKey('batch.id_batch'), nullable=False)
     status_stok = db.Column(db.String(20), default='Di Gudang') 
     pembeli = db.Column(db.String(150), nullable=True)
     tanggal_keluar = db.Column(db.DateTime, nullable=True)
+    catatan_jual = db.Column(db.Text, nullable=True) # <-- KOLOM BARU
 
 # -----------------------------------------------------
 # EKSEKUSI PEMBUATAN DATABASE & DATA AWAL
@@ -223,7 +194,6 @@ class DataGudang(db.Model):
 with app.app_context():
     db.create_all()
     
-    # Memasukkan 20 kategori sampah secara otomatis jika tabel masih kosong
     if KategoriSampah.query.count() == 0:
         daftar_kategori = [
             "Gelas plastik", "Botol plastik bening", "Botol plastik warna", 
@@ -283,26 +253,22 @@ def dapatkan_koordinat_exif(image_path):
 # -----------------------------------------------------
 # RUTE WEB
 # -----------------------------------------------------
-# =====================================================
-# RUTE WEB: LANDING PAGE (PORTAL UTAMA)
-# =====================================================
 @app.route('/')
 def landing_page():
     return render_template('landing.html')
 
 @app.route('/login/<target_role>', methods=['GET', 'POST'])
 def login_petugas(target_role):
-    pesan_error = None  # Variabel untuk menampung pesan salah
+    pesan_error = None  
     
     if request.method == 'POST':
-        id_masuk = request.form.get('id_petugas').upper() # Mengubah input jadi huruf besar
+        id_masuk = request.form.get('id_petugas').upper() 
         petugas = DAFTAR_PETUGAS.get(id_masuk)
         
         if petugas:
             roles_diizinkan = petugas['role']
             target_role_kapital = target_role.capitalize()
             
-            # Cek apakah ID ini boleh masuk ke portal yang dituju
             if target_role_kapital in roles_diizinkan:
                 session['petugas_nama'] = petugas['nama']
                 return redirect(f'/{target_role}')
@@ -311,36 +277,29 @@ def login_petugas(target_role):
         else:
             pesan_error = "ID Petugas tidak ditemukan di sistem!"
             
-    # Jika GET atau jika ada error saat POST, tetap tampilkan login.html dengan pesan errornya
     return render_template('login.html', role=target_role, error=pesan_error)
 
 @app.route('/logout')
 def logout():
-    session.clear() # Menghapus ingatan sesi
+    session.clear() 
     return redirect('/')
 
 # =====================================================
-# API ENDPOINTS (PENGECEK IDENTITAS BATCH)
+# API ENDPOINTS
 # =====================================================
-
 @app.route('/api/info_batch/<id_batch>')
 def info_batch(id_batch):
     try:
         kolektor = LaporanKolektor.query.filter_by(id_batch=id_batch).first()
         if kolektor:
-            # Mengubah waktu UTC ke WIB (+7 jam) dan memformatnya menjadi Tanggal/Bulan/Tahun - Jam:Menit
             waktu_wib = kolektor.waktu_submit + timedelta(hours=7)
             waktu_teks = waktu_wib.strftime('%d/%m/%Y - %H:%M')
-            
-            # Merangkai kalimat akhir
             jawaban_teks = f"{kolektor.nama_petugas} pada {waktu_teks}"
             return jsonify({"status": "ok", "pengirim": jawaban_teks})
             
         return jsonify({"status": "not_found"})
     except Exception as e:
-        print(f"\n❌ EROR PADA API INFO_BATCH: {e}\n")
         return jsonify({"status": "error", "message": str(e)}), 500
-
 
 @app.route('/api/info_batch_lengkap/<id_batch>')
 def info_batch_lengkap(id_batch):
@@ -348,13 +307,11 @@ def info_batch_lengkap(id_batch):
         kolektor = LaporanKolektor.query.filter_by(id_batch=id_batch).first()
         sorter = LaporanSorter.query.filter_by(id_batch=id_batch).first()
         
-        # Merangkai teks untuk Kolektor
         teks_kolektor = "Belum mengisi / Tidak ditemukan"
         if kolektor:
             waktu_k_wib = kolektor.waktu_submit + timedelta(hours=7)
             teks_kolektor = f"{kolektor.nama_petugas} pada {waktu_k_wib.strftime('%d/%m/%Y - %H:%M')}"
             
-        # Merangkai teks untuk Sorter
         teks_sorter = "Belum mengisi / Tidak ditemukan"
         if sorter:
             waktu_s_wib = sorter.waktu_submit + timedelta(hours=7)
@@ -366,18 +323,8 @@ def info_batch_lengkap(id_batch):
             "sorter": teks_sorter
         })
     except Exception as e:
-        print(f"\n❌ EROR PADA API INFO_BATCH_LENGKAP: {e}\n")
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# =====================================================
-# RUTE WEB: OPERATOR LAPANGAN
-# =====================================================
-# =====================================================
-# RUTE WEB: OPERATOR LAPANGAN (SORTER)
-# =====================================================
-# =====================================================
-# RUTE WEB: OPERATOR LAPANGAN (SORTER)
-# =====================================================
 # =====================================================
 # RUTE WEB: OPERATOR LAPANGAN (SORTER)
 # =====================================================
@@ -388,7 +335,6 @@ def halaman_sorter():
     nama = session['petugas_nama']
     kategori_dari_db = KategoriSampah.query.all()
     
-    # MENCARI REVISI
     laporan_petugas = LaporanSorter.query.filter_by(nama_petugas=nama).all()
     list_revisi = []
     for lp in laporan_petugas:
@@ -396,7 +342,6 @@ def halaman_sorter():
         if b and b.status_sorter == 'Rejected':
             list_revisi.append({'id_batch': b.id_batch, 'catatan': b.catatan_sorter})
 
-    # REKAP HARIAN DARI KOLEKTOR
     rekap_tanggal = db.session.query(
         Batch.id_batch.label('tanggal'),
         func.count(LaporanKolektor.id).label('jumlah_petugas'),
@@ -404,7 +349,6 @@ def halaman_sorter():
     ).join(LaporanKolektor, Batch.id_batch == LaporanKolektor.id_batch)\
      .group_by(Batch.id_batch).order_by(Batch.id_batch.desc()).all()
 
-    # DETAIL KOLEKTOR
     detail_kolektor_db = LaporanKolektor.query.all()
     detail_kolektor = {}
     for dk in detail_kolektor_db:
@@ -419,7 +363,6 @@ def halaman_sorter():
             'berat': dk.berat_kotor
         })
 
-    # TANGGAL TERAKHIR KOLEKTOR
     laporan_terakhir = LaporanKolektor.query.order_by(LaporanKolektor.waktu_submit.desc()).first()
     if laporan_terakhir:
         tanggal_terakhir = laporan_terakhir.id_batch 
@@ -437,8 +380,6 @@ def halaman_sorter():
         teks_penyetor = None
         total_kg_terakhir = 0
         
-    # === LOGIKA BARU: DAFTAR TANGGAL YANG SUDAH DISORTIR ===
-    # Mencari id_batch (tanggal) apa saja yang sudah ada di database tabel LaporanSorter
     sudah_disortir = [s.id_batch for s in LaporanSorter.query.with_entities(LaporanSorter.id_batch).distinct().all()]
 
     return render_template('sorter.html', 
@@ -450,23 +391,8 @@ def halaman_sorter():
                            tanggal_terakhir=tanggal_terakhir,
                            teks_penyetor=teks_penyetor,
                            total_kg_terakhir=total_kg_terakhir,
-                           sudah_disortir=sudah_disortir) # <--- Kita kirim ke HTML
+                           sudah_disortir=sudah_disortir)
 
-# =====================================================
-# RUTE WEB: OPERATOR LAPANGAN (KOLEKTOR)
-# =====================================================
-# =====================================================
-# RUTE WEB: OPERATOR LAPANGAN (KOLEKTOR)
-# =====================================================
-# =====================================================
-# RUTE WEB: OPERATOR LAPANGAN (KOLEKTOR)
-# =====================================================
-# =====================================================
-# RUTE WEB: OPERATOR LAPANGAN (KOLEKTOR)
-# =====================================================
-# =====================================================
-# RUTE WEB: OPERATOR LAPANGAN (KOLEKTOR)
-# =====================================================
 # =====================================================
 # RUTE WEB: OPERATOR LAPANGAN (KOLEKTOR)
 # =====================================================
@@ -476,7 +402,6 @@ def halaman_kolektor():
         return redirect('/')
     nama = session['petugas_nama']
     
-    # MENCARI REVISI KHUSUS PETUGAS INI
     laporan_petugas = LaporanKolektor.query.filter_by(nama_petugas=nama).all()
     list_revisi = []
     for lp in laporan_petugas:
@@ -484,20 +409,13 @@ def halaman_kolektor():
         if b and b.status_kolektor == 'Rejected':
             list_revisi.append({'id_batch': b.id_batch, 'catatan': b.catatan_kolektor})
 
-    # === LOGIKA BARU: TANGGAL & NAMA PENYETOR TERAKHIR ===
-    # 1. Cari data yang paling terakhir kali di-klik "Submit" (berdasarkan waktu)
     laporan_terakhir = LaporanKolektor.query.order_by(LaporanKolektor.waktu_submit.desc()).first()
     
     if laporan_terakhir:
         tanggal_terakhir = laporan_terakhir.id_batch 
-        
-        # 2. Cari semua petugas yang menyetor di tanggal kegiatan yang sama tersebut
         semua_setoran_terakhir = LaporanKolektor.query.filter_by(id_batch=tanggal_terakhir).all()
-        
-        # Gunakan set() agar nama tidak ganda jika kebetulan ada bug submit ganda
         list_nama = list(set([lp.nama_petugas for lp in semua_setoran_terakhir]))
         
-        # 3. Format penyebutan nama agar rapi secara tata bahasa
         if len(list_nama) == 1:
             teks_penyetor = list_nama[0]
         elif len(list_nama) == 2:
@@ -512,7 +430,7 @@ def halaman_kolektor():
                            nama_petugas=nama, 
                            list_revisi=list_revisi,
                            tanggal_terakhir=tanggal_terakhir,
-                           teks_penyetor=teks_penyetor) # <-- Kirim variabel teks_penyetor ke HTML
+                           teks_penyetor=teks_penyetor) 
 
 @app.route('/submit_kolektor', methods=['POST'])
 def submit_kolektor():
@@ -554,19 +472,15 @@ def submit_kolektor():
 
     laporan.berat_kotor = float(request.form.get('berat_kotor', 0))
 
-    # ======================================================================
-    # FITUR BARU: TANGKAP INPUT KOORDINAT MANUAL JIKA ADA
-    # ======================================================================
     lat_manual = request.form.get('latitude')
     lon_manual = request.form.get('longitude')
     
     if lat_manual and lon_manual:
         try:
-            # Otomatis ubah koma menjadi titik agar Python tidak error
             laporan.latitude = float(lat_manual.replace(',', '.'))
             laporan.longitude = float(lon_manual.replace(',', '.'))
         except ValueError:
-            passs
+            pass
 
     nama_aman = secure_filename(session.get('petugas_nama').replace(" ", "_"))
     FotoDokumentasi.query.filter(
@@ -599,7 +513,6 @@ def submit_kolektor():
                     )
                 )
                 
-                # Hanya ekstrak EXIF otomatis jika user TIDAK mengisi koordinat manual
                 if field_name == 'foto_sebelum' and i == 0:
                     if not (lat_manual and lon_manual):
                         lat, lon = dapatkan_koordinat_exif(save_path)
@@ -618,17 +531,11 @@ def submit_kolektor():
 
     return render_template('success.html', pesan=f"Laporan Kolektor untuk tanggal {tanggal_input} berhasil disimpan!")
 
-# =====================================================
-# BATAS AKHIR KODE KOLEKTOR
-# =====================================================
-
-
 @app.route('/submit_sorter', methods=['POST'])
 def submit_sorter():
     if request.method != 'POST':
         return redirect('/')
 
-    # MENGGUNAKAN TANGGAL SEBAGAI ID BATCH
     tanggal_input = request.form.get('tanggal_kegiatan')
     if not tanggal_input:
         return "Error: Tanggal kegiatan kosong!", 400
@@ -642,14 +549,9 @@ def submit_sorter():
         Pastikan Kolektor sudah menyetorkan data terlebih dahulu sebelum disortir.
         """, 400
     
-    # ====================================================================
-    # FITUR KEAMANAN: VALIDASI BERAT SORTER VS KOLEKTOR
-    # ====================================================================
-    # 1. Dapatkan Total Sampah Kotor Kolektor Hari Itu
     list_kol = LaporanKolektor.query.filter_by(id_batch=id_batch_input).all()
     total_kolektor = sum([k.berat_kotor for k in list_kol if k.berat_kotor])
 
-    # 2. Hitung Total Input Berat dari Form Sorter Saat Ini
     total_input_sekarang = 0
     for kat in KategoriSampah.query.all():
         nilai = request.form.get(f'kategori_{kat.id}')
@@ -661,7 +563,6 @@ def submit_sorter():
             except ValueError:
                 pass
 
-    # 3. Hitung Total Sorter Lain (Jika ada tim Sorter > 1 orang di hari yang sama)
     list_sor_lain = LaporanSorter.query.filter(
         LaporanSorter.id_batch == id_batch_input,
         LaporanSorter.nama_petugas != session.get('petugas_nama')
@@ -672,10 +573,8 @@ def submit_sorter():
         details = DetailSortiran.query.filter_by(id_sorter=s_lain.id).all()
         total_sorter_lain += sum([d.berat for d in details if d.berat])
 
-    # Gabungkan input saat ini dengan input teman yang sudah ada
     total_gabungan_sorter = total_input_sekarang + total_sorter_lain
 
-    # 4. Validasi Final (Mencegah Overweight)
     if total_gabungan_sorter > total_kolektor:
         sisa_kuota = total_kolektor - total_sorter_lain
         return f"""
@@ -701,12 +600,6 @@ def submit_sorter():
             </button>
         </div>
         """, 400
-    # ====================================================================
-
-    # (Sisa kode di bawahnya tetap sama, dimulai dari pengecekan status_sorter)
-    if batch.status_sorter == 'Rejected':
-        batch.status_sorter = 'Pending'
-        # ... dsb
 
     if batch.status_sorter == 'Rejected':
         batch.status_sorter = 'Pending'
@@ -716,14 +609,12 @@ def submit_sorter():
 
     nama_aman = secure_filename(session.get('petugas_nama').replace(" ", "_"))
 
-    # SIHIR PELINDUNG FOTO SORTER
     FotoDokumentasi.query.filter(
         FotoDokumentasi.id_batch == id_batch_input,
         FotoDokumentasi.bagian == 'sorter',
         FotoDokumentasi.path_foto.ilike(f"%_{nama_aman}_%")
     ).delete(synchronize_session=False)
 
-    # FOTO DOKUMENTASI UMUM SORTER
     for field in ['foto_bekerja', 'foto_seluruh_karung']:
         files = request.files.getlist(field)
         for i, f in enumerate(files):
@@ -738,8 +629,6 @@ def submit_sorter():
                     )
                 )
 
-    # AMBIL / BUAT LAPORAN SORTER
-    # AMBIL / BUAT LAPORAN SORTER KHUSUS PETUGAS INI
     sorter = LaporanSorter.query.filter_by(
         id_batch=id_batch_input, 
         nama_petugas=session.get('petugas_nama')
@@ -752,13 +641,11 @@ def submit_sorter():
         db.session.commit()
         sorter_baru = True
 
-    # Jika re-submit, bersihkan dulu foto detail & data lama Sorter
     details_lama = DetailSortiran.query.filter_by(id_sorter=sorter.id).all()
     for dl in details_lama:
         FotoKategori.query.filter_by(jenis='sorter', id_detail=dl.id).delete()
     DetailSortiran.query.filter_by(id_sorter=sorter.id).delete()
 
-    # DETAIL KATEGORI + MULTI FOTO PER KELAS
     for kat in KategoriSampah.query.all():
         nilai = request.form.get(f'kategori_{kat.id}')
         if not nilai: continue
@@ -769,10 +656,9 @@ def submit_sorter():
 
         detail = DetailSortiran(id_sorter=sorter.id, id_kategori=kat.id, berat=berat)
         db.session.add(detail)
-        db.session.flush() # Mendapatkan ID detail sementara
+        db.session.flush() 
 
         files = request.files.getlist(f'foto_karung_{kat.id}')
-        foto_pertama = True
         for foto in files:
             if foto and foto.filename:
                 fname = secure_filename(f"karung_{id_batch_input}_{nama_aman}_kat{kat.id}_{foto.filename}")
@@ -785,7 +671,6 @@ def submit_sorter():
                     )
                 )
 
-    # LOG AKTIVITAS
     log = LogRiwayat(
         id_batch=id_batch_input, aktor=session.get('petugas_nama'),
         aksi="Submit Sorter" if sorter_baru else "Re-submit Sorter",
@@ -795,11 +680,9 @@ def submit_sorter():
     db.session.commit()
 
     return render_template('success.html', pesan=f"Laporan Sorter untuk tanggal {tanggal_input} berhasil disimpan!")
+
 # =====================================================
 # RUTE WEB: PRESSER
-# =====================================================
-# =====================================================
-# RUTE WEB: OPERATOR LAPANGAN (PRESSER)
 # =====================================================
 @app.route('/presser')
 def halaman_presser():
@@ -808,12 +691,10 @@ def halaman_presser():
     nama = session['petugas_nama']
     kategori_dari_db = KategoriSampah.query.all()
     
-    # MENCARI REVISI
     laporan_petugas = LaporanPresser.query.filter_by(nama_petugas=nama).all()
     list_revisi = []
     for lp in laporan_petugas:
         b = Batch.query.get(lp.id_batch)
-        # Jika ditolak, tampilkan kodenya
         if b and b.status_presser == 'Rejected':
             list_revisi.append({'kode_karung': b.id_batch, 'catatan': b.catatan_presser})
 
@@ -828,7 +709,6 @@ def submit_presser():
         return redirect('/')
 
     tanggal_press = request.form.get('tanggal_kegiatan')
-    # Kode Karung kini opsional (hanya diisi manual jika sedang melakukan Revisi)
     kode_revisi = request.form.get('kode_karung', '').strip().upper()
     
     if not tanggal_press:
@@ -838,7 +718,6 @@ def submit_presser():
     files_bekerja = request.files.getlist('foto_bekerja')
     list_kode_terbuat = []
 
-    # KAMUS INISIAL OTOMATIS
     PREFIX_KATEGORI = {
         "Gelas plastik": "GP", "Botol plastik bening": "BPB", "Botol plastik warna": "BPW", 
         "Botol keras": "BK", "Kontainer keras": "KK", "Kresek": "KRS", "Tutup botol": "TB", 
@@ -848,9 +727,6 @@ def submit_presser():
         "Ghostnet": "GN", "Pipa": "PIP", "Masker": "MSK", "Popok": "PPK", "Putung rokok": "PR"
     }
 
-    # =========================================================================
-    # SKENARIO A: PROSES REVISI (Jika Kurator menolak, dan kode karung diketik manual)
-    # =========================================================================
     if kode_revisi:
         batch = Batch.query.get(kode_revisi)
         if not batch: return "Error: Kode Karung Revisi tidak ditemukan!", 404
@@ -908,9 +784,6 @@ def submit_presser():
         db.session.commit()
         return render_template('success.html', pesan=f"Data Revisi Karung {kode_revisi} Berhasil Disimpan!")
 
-    # =========================================================================
-    # SKENARIO B: PEMBUATAN KARUNG BARU (NOMOR BERLANJUT SEPANJANG MASA)
-    # =========================================================================
     for kat in KategoriSampah.query.all():
         nilai = request.form.get(f'kategori_{kat.id}')
         if not nilai: continue
@@ -918,23 +791,18 @@ def submit_presser():
         except ValueError: continue
         if berat <= 0: continue
 
-        # 1. GENERATE KODE OTOMATIS BERKELANJUTAN
         prefix = PREFIX_KATEGORI.get(kat.nama_kategori, f"K{kat.id}")
         tgl_str = tgl_obj.strftime('%y%m%d') 
         
-        # Hitung total karung SEPANJANG WAKTU untuk kategori ini (Mencegah reset)
         count_total = Batch.query.filter(Batch.id_batch.like(f"{prefix}-%")).count()
         urutan = count_total + 1
         
-        # Menggunakan 3 digit nol di depan (Contoh: GP-260612-005)
         kode_karung = f"{prefix}-{tgl_str}-{urutan:03d}" 
         
-        # Proteksi Anti-Tabrakan
         while Batch.query.get(kode_karung):
             urutan += 1
             kode_karung = f"{prefix}-{tgl_str}-{urutan:03d}"
 
-        # 2. BUAT BATCH INDEPENDEN UNTUK KATEGORI INI
         batch = Batch(id_batch=kode_karung, tanggal=tgl_obj, status='Menunggu_Kurasi',
                       status_kolektor='Approved', status_sorter='Approved', status_presser='Pending')
         db.session.add(batch)
@@ -947,7 +815,6 @@ def submit_presser():
         db.session.add(detail)
         db.session.flush()
 
-        # 3. SIMPAN FOTO BAL KATEGORI INI
         files_bal = request.files.getlist(f'foto_bal_{kat.id}')
         for foto in files_bal:
             if foto and foto.filename:
@@ -964,7 +831,6 @@ def submit_presser():
         log = LogRiwayat(id_batch=kode_karung, aktor=session.get('petugas_nama'), aksi="Submit Presser", catatan=f"Karung {kat.nama_kategori} didaftarkan otomatis.")
         db.session.add(log)
 
-    # 4. SIMPAN FOTO BEKERJA (DIKAITKAN KE SEMUA BATCH YANG BARUSAN DIBUAT)
     if list_kode_terbuat:
         timestamp = datetime.utcnow().strftime("%H%M%S")
         for i, f in enumerate(files_bekerja):
@@ -984,9 +850,6 @@ def submit_presser():
     if not list_kode_terbuat:
         return "Error: Tidak ada satupun angka berat kategori yang diisi!", 400
 
-    # =========================================================================
-    # PENGUMUMAN INSTRUKSI PELABELAN SPIDOL UNTUK PRESSER
-    # =========================================================================
     pesan_sukses = f"""
     <div style="text-align: center;">
         <br>
@@ -1006,91 +869,6 @@ def submit_presser():
     """
     return render_template('success.html', pesan=pesan_sukses)
 
-    # =========================================================================
-    # SKENARIO B: PEMBUATAN KARUNG BARU OTOMATIS (Bisa Banyak Sekaligus)
-    # =========================================================================
-    for kat in KategoriSampah.query.all():
-        nilai = request.form.get(f'kategori_{kat.id}')
-        if not nilai: continue
-        try: berat = float(nilai)
-        except ValueError: continue
-        if berat <= 0: continue
-
-        # 1. GENERATE KODE OTOMATIS (Format: INISIAL-YYMMDD-URUTAN)
-        prefix = PREFIX_KATEGORI.get(kat.nama_kategori, f"K{kat.id}")
-        tgl_str = tgl_obj.strftime('%y%m%d') # Contoh: 260612
-        base_kode = f"{prefix}-{tgl_str}"
-        
-        count_hari_ini = Batch.query.filter(Batch.id_batch.like(f"{base_kode}-%")).count()
-        urutan = count_hari_ini + 1
-        kode_karung = f"{base_kode}-{urutan:02d}" # Contoh: BPB-260612-01
-        
-        while Batch.query.get(kode_karung):
-            urutan += 1
-            kode_karung = f"{base_kode}-{urutan:02d}"
-
-        # 2. BUAT BATCH INDEPENDEN UNTUK KATEGORI INI
-        batch = Batch(id_batch=kode_karung, tanggal=tgl_obj, status='Menunggu_Kurasi',
-                      status_kolektor='Approved', status_sorter='Approved', status_presser='Pending')
-        db.session.add(batch)
-        
-        presser = LaporanPresser(id_batch=kode_karung, nama_petugas=session.get('petugas_nama'))
-        db.session.add(presser)
-        db.session.flush()
-
-        detail = DetailPresser(id_presser=presser.id, id_kategori=kat.id, berat=berat)
-        db.session.add(detail)
-        db.session.flush()
-
-        # 3. SIMPAN FOTO BAL KATEGORI INI
-        files_bal = request.files.getlist(f'foto_bal_{kat.id}')
-        for foto in files_bal:
-            if foto and foto.filename:
-                fname = secure_filename(f"bal_{kode_karung}_{kat.id}_{foto.filename}")
-                save_path = os.path.join(app.config['UPLOAD_FOLDER'], fname)
-                foto.seek(0)
-                foto.save(save_path)
-                db.session.add(FotoKategori(
-                    jenis='presser', id_detail=detail.id, path_foto=f"static/uploads/{fname}", is_selected=False
-                ))
-                
-        list_kode_terbuat.append(kode_karung)
-        
-        log = LogRiwayat(id_batch=kode_karung, aktor=session.get('petugas_nama'), aksi="Submit Presser", catatan=f"Karung {kat.nama_kategori} didaftarkan otomatis.")
-        db.session.add(log)
-
-    # 4. SIMPAN FOTO BEKERJA (DIKAITKAN KE SEMUA BATCH YANG BARUSAN DIBUAT)
-    if list_kode_terbuat:
-        timestamp = datetime.utcnow().strftime("%H%M%S")
-        for i, f in enumerate(files_bekerja):
-            if f and f.filename:
-                fname = secure_filename(f"press_kerja_{tanggal_press}_{timestamp}_{f.filename}")
-                save_path = os.path.join(app.config['UPLOAD_FOLDER'], fname)
-                f.save(save_path)
-                
-                # File fisik di-upload 1x, tapi diregistrasikan ke database semua karung barusan
-                for kode in list_kode_terbuat:
-                    db.session.add(FotoDokumentasi(
-                        id_batch=kode, bagian='presser', kategori_foto='foto_bekerja',
-                        path_foto=f"static/uploads/{fname}", is_selected=False
-                    ))
-    
-    db.session.commit()
-
-    if not list_kode_terbuat:
-        return "Error: Tidak ada satupun angka berat kategori yang diisi!", 400
-
-    pesan_sukses = f"Berhasil membuat {len(list_kode_terbuat)} Karung Bal Otomatis: <br><br><b>" + "</b><br><b>".join(list_kode_terbuat) + "</b>"
-    return render_template('success.html', pesan=pesan_sukses)
-
-# ==================================================
-# PILIH FOTO (MULTI-SELECT LOGIC)
-# ==================================================
-
-# ==================================================
-# PILIH FOTO (MULTI-SELECT LOGIC)
-# ==================================================
-
 @app.route('/curator/select_photo', methods=['POST'])
 def select_photo():
     foto_id = request.form.get('foto_id')
@@ -1098,7 +876,6 @@ def select_photo():
     if not foto:
         return redirect(request.referrer)
 
-    # LOGIKA BARU: Toggle (Pilih / Batal Pilih Multi-foto)
     foto.is_selected = not foto.is_selected
     db.session.commit()
     return redirect(request.referrer)
@@ -1110,16 +887,10 @@ def select_documentation():
     if not foto:
         return redirect(request.referrer)
 
-    # LOGIKA BARU: Toggle (Pilih / Batal Pilih Multi-foto)
     foto.is_selected = not foto.is_selected
     db.session.commit()
     return redirect(url_for('inspect_batch', id_batch=foto.id_batch))
-# =====================================================
-# RUTE WEB: MANAGEMENT (CURATOR)
-# =====================================================
-# =====================================================
-# RUTE WEB: MANAGEMENT (CURATOR)
-# =====================================================
+
 # =====================================================
 # RUTE WEB: MANAGEMENT (CURATOR)
 # =====================================================
@@ -1156,7 +927,7 @@ def dashboard_curator():
             continue
 
         logs = LogRiwayat.query.filter_by(id_batch=b.id_batch).order_by(LogRiwayat.waktu.desc()).all()
-        nama_kurator = "Pending Curation" # Diterjemahkan
+        nama_kurator = "Pending Curation" 
         for log in logs:
             if 'Approved' in log.aksi or 'Rejected' in log.aksi or 'Revoke' in log.aksi:
                 nama_kurator = log.aktor
@@ -1167,8 +938,8 @@ def dashboard_curator():
         list_sor = LaporanSorter.query.filter_by(id_batch=b.id_batch).all()
         
         pengirim_presser = cek_presser.nama_petugas if cek_presser else "-"
-        pengirim_kolektor = " & ".join([k.nama_petugas for k in list_kol]) if list_kol else "-" # Diterjemahkan
-        pengirim_sorter = " & ".join([s.nama_petugas for s in list_sor]) if list_sor else "-" # Diterjemahkan
+        pengirim_kolektor = " & ".join([k.nama_petugas for k in list_kol]) if list_kol else "-" 
+        pengirim_sorter = " & ".join([s.nama_petugas for s in list_sor]) if list_sor else "-" 
         
         item_data = {
             'data': b,
@@ -1198,7 +969,6 @@ def inspect_batch(id_batch):
 
     batch = Batch.query.get_or_404(id_batch)
 
-    # 1. PENGGABUNGAN KOLEKTOR DENGAN DUKUNGAN MULTI-LOKASI
     list_kol = LaporanKolektor.query.filter_by(id_batch=id_batch).all()
     kolektor_gabungan = None
     if list_kol:
@@ -1210,16 +980,13 @@ def inspect_batch(id_batch):
             longitude=list_kol[0].longitude
         )
         
-        # Kumpulkan semua lokasi dari masing-masing kolektor
         lokasi_list = []
         for k in list_kol:
-            # Gunakan "is not None" agar angka 0.0 (Garis Khatulistiwa) tidak dianggap kosong
             if k.latitude is not None and k.longitude is not None:
                 lokasi_list.append({'nama': k.nama_petugas, 'lat': k.latitude, 'lon': k.longitude})
         
         kolektor_gabungan.lokasi = lokasi_list
 
-    # 2. PENGGABUNGAN SORTER
     list_sor = LaporanSorter.query.filter_by(id_batch=id_batch).all()
     sorter_gabungan = None
     detail_sorter = []
@@ -1254,7 +1021,6 @@ def inspect_batch(id_batch):
 
             detail_sorter.append({'id': id_kat, 'nama': nama, 'berat': berat, 'fotos': fotos})
 
-    # 3. PRESSER
     presser = LaporanPresser.query.filter_by(id_batch=id_batch).first()
     detail_presser = []
     if presser:
@@ -1328,7 +1094,7 @@ def curator_action():
             id_batch=id_batch,
             aktor=session.get('petugas_nama'), 
             aksi=status_aksi,
-            catatan=catatan if action == 'reject' else f"{part.capitalize()} data components verified as valid." # Diterjemahkan
+            catatan=catatan if action == 'reject' else f"{part.capitalize()} data components verified as valid."
         )
         db.session.add(log)
         db.session.commit()
@@ -1349,17 +1115,13 @@ def tarik_data_auditor():
             id_batch=id_batch,
             aktor=session.get('petugas_nama'),
             aksi="Revoked Data",
-            catatan="Data revoked from Auditor Dashboard for re-curation." # Diterjemahkan
+            catatan="Data revoked from Auditor Dashboard for re-curation." 
         )
         db.session.add(log)
         db.session.commit()
         
     return redirect(url_for('inspect_batch', id_batch=id_batch))
 
-# =====================================================
-# KAMUS PINTAR: TRANSLASI KATEGORI KE BAHASA INGGRIS
-# =====================================================
-# Kamus ini sekarang sudah cocok 100% dengan database Sorter Anda
 KAMUS_KATEGORI = {
     "Gelas plastik": "Plastic Cups",
     "Botol plastik bening": "Clear Plastic Bottles",
@@ -1427,7 +1189,6 @@ def dashboard_auditor():
         sorter = LaporanSorter.query.filter_by(id_batch=b.id_batch).first()
         presser = LaporanPresser.query.filter_by(id_batch=b.id_batch).first()
 
-        # --- STATISTIK ---
         if kolektor:
             tgl_str = b.tanggal.strftime('%d %b %Y')
             dict_tanggal[tgl_str] = dict_tanggal.get(tgl_str, 0) + kolektor.berat_kotor
@@ -1437,7 +1198,6 @@ def dashboard_auditor():
             for d in details:
                 if d.berat > 0:
                     kat = KategoriSampah.query.get(d.id_kategori)
-                    # TRANSLASI NAMA KATEGORI KE INGGRIS UNTUK GRAFIK
                     nama_inggris = KAMUS_KATEGORI.get(kat.nama_kategori, kat.nama_kategori)
                     dict_kategori[nama_inggris] = dict_kategori.get(nama_inggris, 0) + d.berat
 
@@ -1446,11 +1206,9 @@ def dashboard_auditor():
             for d in details_p:
                 if d.berat > 0:
                     kat = KategoriSampah.query.get(d.id_kategori)
-                    # TRANSLASI NAMA KATEGORI KE INGGRIS UNTUK GRAFIK
                     nama_inggris = KAMUS_KATEGORI.get(kat.nama_kategori, kat.nama_kategori)
                     dict_presser[nama_inggris] = dict_presser.get(nama_inggris, 0) + d.berat
 
-        # --- ARSIP ZIP ---
         log_kurator = LogRiwayat.query.filter(
             LogRiwayat.id_batch == b.id_batch, 
             LogRiwayat.aksi.like('%Approved%')
@@ -1483,28 +1241,6 @@ def dashboard_auditor():
                            tahun_tersedia=tahun_tersedia,
                            nama_petugas=nama_auditor)
 
-import os
-# Pastikan Anda sudah mengimpor 'os' di bagian atas file app.py jika belum ada.
-
-import os
-from io import BytesIO
-import zipfile
-from flask import send_file, flash, redirect, url_for
-
-import os
-from io import BytesIO
-import zipfile
-from flask import send_file, flash, redirect, url_for
-from sqlalchemy import or_  # JANGAN LUPA TAMBAHKAN INI DI ATAS
-
-import os
-from io import BytesIO
-import zipfile
-from flask import send_file, flash, redirect, url_for
-
-# =====================================================
-# RUTE WEB: UNDUH FOTO (ZIP)
-# =====================================================
 @app.route('/auditor/download_photos/<id_batch>')
 def download_selected_photos_auditor(id_batch):
     batch = Batch.query.filter_by(id_batch=id_batch).first()
@@ -1515,40 +1251,33 @@ def download_selected_photos_auditor(id_batch):
     memory_file = BytesIO()
     arsip_foto = [] 
 
-    # =========================================================
-    # 1. AMBIL FOTO UMUM DARI TABEL 'FotoDokumentasi'
-    # =========================================================
     fotos_umum = FotoDokumentasi.query.filter_by(id_batch=id_batch, is_selected=True).all()
     for f in fotos_umum:
         kategori_asli = f.kategori_foto.lower() if f.kategori_foto else "lainnya"
         nama_cantik = "Foto"
         
         if f.bagian == 'kolektor':
-            if kategori_asli == 'sebelum': nama_cantik = 'Sebelum Cleanup'
-            elif kategori_asli == 'saat': nama_cantik = 'Saat Cleanup'
-            elif kategori_asli == 'setelah': nama_cantik = 'Setelah Cleanup'
-            elif kategori_asli == 'karung_lokasi': nama_cantik = 'Karung di Lokasi'
-            elif kategori_asli == 'timbang_basah': nama_cantik = 'Timbang Basah'
-            elif kategori_asli == 'fasilitas': nama_cantik = 'Fasilitas'
+            if kategori_asli == 'sebelum': nama_cantik = 'Before Cleanup'
+            elif kategori_asli == 'saat': nama_cantik = 'During Cleanup'
+            elif kategori_asli == 'setelah': nama_cantik = 'After Cleanup'
+            elif kategori_asli == 'karung_lokasi': nama_cantik = 'Bags at Location'
+            elif kategori_asli == 'timbang_basah': nama_cantik = 'Mixed Plastics Scale'
+            elif kategori_asli == 'fasilitas': nama_cantik = 'Facilities'
             else: nama_cantik = kategori_asli.title()
         elif f.bagian == 'sorter':
-            if 'bekerja' in kategori_asli: nama_cantik = 'Aktivitas Sorter'
-            elif 'seluruh_karung' in kategori_asli: nama_cantik = 'Seluruh Karung Sorter'
-            else: nama_cantik = 'Dokumentasi Sorter'
+            if 'bekerja' in kategori_asli: nama_cantik = 'Sorter at Work'
+            elif 'seluruh_karung' in kategori_asli: nama_cantik = 'All Sorter Bags'
+            else: nama_cantik = 'Sorter Documentation'
         elif f.bagian == 'presser':
-            if 'bekerja' in kategori_asli: nama_cantik = 'Aktivitas Presser'
-            elif 'seluruh_press' in kategori_asli: nama_cantik = 'Seluruh Bal Presser'
-            else: nama_cantik = 'Dokumentasi Presser'
+            if 'bekerja' in kategori_asli: nama_cantik = 'Presser at Work'
+            elif 'seluruh_press' in kategori_asli: nama_cantik = 'All Presser Bales'
+            else: nama_cantik = 'Presser Documentation'
             
         arsip_foto.append({
             'path_asli': f.path_foto,
-            # NAMA BARU TANPA TANGGAL DOBEL
             'nama_baru': f"{id_batch}_{nama_cantik}_Doc{f.id}"
         })
 
-    # =========================================================
-    # 2. AMBIL FOTO KELAS SPESIFIK (SORTER)
-    # =========================================================
     fotos_sorter = db.session.query(FotoKategori, KategoriSampah.nama_kategori)\
         .join(DetailSortiran, FotoKategori.id_detail == DetailSortiran.id)\
         .join(LaporanSorter, DetailSortiran.id_sorter == LaporanSorter.id)\
@@ -1561,9 +1290,6 @@ def download_selected_photos_auditor(id_batch):
             'nama_baru': f"{id_batch}_Detailed Sorted Weight - {nama_kategori}_Kat{f.id}"
         })
 
-    # =========================================================
-    # 3. AMBIL FOTO KELAS SPESIFIK (PRESSER)
-    # =========================================================
     fotos_presser = db.session.query(FotoKategori, KategoriSampah.nama_kategori)\
         .join(DetailPresser, FotoKategori.id_detail == DetailPresser.id)\
         .join(LaporanPresser, DetailPresser.id_presser == LaporanPresser.id)\
@@ -1576,9 +1302,6 @@ def download_selected_photos_auditor(id_batch):
             'nama_baru': f"{id_batch}_Final Bale - {nama_kategori}_Kat{f.id}"
         })
 
-    # =========================================================
-    # 4. MEMBUNGKUS SEMUA FOTO KE DALAM ZIP
-    # =========================================================
     with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zf:
         for item in arsip_foto:
             nama_file_fisik = os.path.basename(item['path_asli'])
@@ -1590,19 +1313,12 @@ def download_selected_photos_auditor(id_batch):
                 zf.write(file_path, arcname=nama_final)
 
     memory_file.seek(0)
-    # NAMA ZIP DOWNLOAD MENJADI SERIBU BIRU (Tanpa tanggal dobel)
     return send_file(
         memory_file, 
         download_name=f"Seribu_Biru_Photos_{id_batch}.zip", 
         as_attachment=True
     )
 
-# =====================================================
-# RUTE WEB: EXPORT DATA KE CSV (HARIAN)
-# =====================================================
-# =====================================================
-# RUTE WEB: EXPORT DATA KE CSV (HARIAN)
-# =====================================================
 @app.route('/export_csv_harian')
 def export_csv_harian():
     if 'petugas_nama' not in session:
@@ -1612,7 +1328,6 @@ def export_csv_harian():
     cw = csv.writer(si)
     kategori_all = KategoriSampah.query.order_by(KategoriSampah.id).all()
     
-    # 1. UPDATE HEADER: Menambahkan kolom Location Coordinates
     header = [
         'Batch_ID', 'Activity_Date', 'Final_Status', 
         'Collector_Time_WIB', 'Collector_Name', 'Gross_Weight_Kg', 'Location_Coordinates', 
@@ -1627,55 +1342,37 @@ def export_csv_harian():
     batches = Batch.query.filter_by(status='Disetujui').order_by(Batch.tanggal.desc()).all()
     
     for b in batches:
-        # Mengambil SEMUA data menggunakan .all() untuk mengatasi multi-operator
         list_kol = LaporanKolektor.query.filter_by(id_batch=b.id_batch).all()
         list_sor = LaporanSorter.query.filter_by(id_batch=b.id_batch).all()
         presser = LaporanPresser.query.filter_by(id_batch=b.id_batch).first()
         
-        # Abaikan jika ini adalah karung bal independen (hanya masuk gudang presser)
         if presser and not list_kol and not list_sor: 
             continue
 
         row = [b.id_batch, b.tanggal.strftime('%Y-%m-%d'), b.status]
         
-        # ==========================================
-        # LOGIKA PENGGABUNGAN KOLEKTOR & LOKASI
-        # ==========================================
         if list_kol:
-            # Ambil waktu submit paling terakhir
             waktu_terakhir = max([k.waktu_submit for k in list_kol if k.waktu_submit] or [datetime.utcnow()])
             waktu_kol = (waktu_terakhir + timedelta(hours=7)).strftime('%Y-%m-%d %H:%M')
-            
-            # Gabungkan nama dengan '&' dan totalkan beratnya
             nama_kol = " & ".join([k.nama_petugas for k in list_kol])
             berat_kol = sum([k.berat_kotor for k in list_kol if k.berat_kotor])
             
-            # Kumpulkan dan gabungkan lokasi jika ada lebih dari 1 titik
             lokasi_list = []
             for k in list_kol:
                 if k.latitude is not None and k.longitude is not None:
                     lokasi_list.append(f"{k.latitude}, {k.longitude}")
             
-            # Jika ada 2 lokasi, akan dipisah dengan garis lurus " | "
             lokasi_str = " | ".join(lokasi_list) if lokasi_list else "-"
-
             row.extend([waktu_kol, nama_kol, berat_kol, lokasi_str])
         else:
             row.extend(['-', '-', 0, '-'])
             
-        # ==========================================
-        # LOGIKA PENGGABUNGAN SORTER
-        # ==========================================
         if list_sor:
-            # Ambil waktu submit paling terakhir
             waktu_terakhir = max([s.waktu_submit for s in list_sor if s.waktu_submit] or [datetime.utcnow()])
             waktu_sorter = (waktu_terakhir + timedelta(hours=7)).strftime('%Y-%m-%d %H:%M')
-            
-            # Gabungkan nama dengan '&'
             nama_sorter = " & ".join([s.nama_petugas for s in list_sor])
             row.extend([waktu_sorter, nama_sorter])
             
-            # Gabungkan detail berat sortiran dari SEMUA Sorter pada hari itu
             sorter_ids = [s.id for s in list_sor]
             detail_s = DetailSortiran.query.filter(DetailSortiran.id_sorter.in_(sorter_ids)).all()
             
@@ -1690,9 +1387,6 @@ def export_csv_harian():
             for kat in kategori_all:
                 row.append(0)
                 
-        # ==========================================
-        # LOGIKA KURATOR
-        # ==========================================
         log_kurator = LogRiwayat.query.filter(
             LogRiwayat.id_batch == b.id_batch, 
             LogRiwayat.aksi.like('%Approved%')
@@ -1710,9 +1404,6 @@ def export_csv_harian():
     output.headers["Content-Disposition"] = "attachment; filename=Seribu_Biru_Daily_Report.csv"
     return output
 
-# =====================================================
-# RUTE WEB: EXPORT DATA KE CSV (PRESSER)
-# =====================================================
 @app.route('/export_csv_presser')
 def export_csv_presser():
     si = StringIO()
@@ -1759,26 +1450,17 @@ def export_csv_presser():
         cw.writerow(row)
         
     output = Response(si.getvalue(), mimetype='text/csv')
-    # NAMA EXPORT DIUBAH KE SERIBU BIRU
     output.headers["Content-Disposition"] = "attachment; filename=Seribu_Biru_Press_Bales.csv"
     return output
 
-# =====================================================
-# RUTE WEB: SUPER ADMIN (PERFORMA OPERATOR)
-# =====================================================
-# =====================================================
-# RUTE WEB: SUPER ADMIN (PERFORMA OPERATOR & TRACKING)
-# =====================================================
 # =====================================================
 # RUTE WEB: SUPER ADMIN (PERFORMA OPERATOR & TRACKING)
 # =====================================================
 @app.route('/performa')
 def halaman_performa():
-    # Proteksi Ketat: Hanya Super Admin yang bisa mengakses
     if session.get('petugas_nama') != 'Super Admin':
         return "Akses Ditolak: Halaman ini bersifat rahasia dan khusus Super Admin.", 403
 
-    # 1. Hitung Performa Kolektor (Hanya yg Approved)
     kolektor_stats = db.session.query(
         LaporanKolektor.nama_petugas,
         func.count(func.distinct(case((Batch.status_kolektor == 'Approved', LaporanKolektor.id_batch), else_=None))).label('total_kerja'),
@@ -1787,7 +1469,6 @@ def halaman_performa():
     ).join(Batch, LaporanKolektor.id_batch == Batch.id_batch)\
      .group_by(LaporanKolektor.nama_petugas).all()
 
-    # 2. Hitung Performa Sorter (Hanya yg Approved)
     sorter_stats = db.session.query(
         LaporanSorter.nama_petugas,
         func.count(func.distinct(case((Batch.status_sorter == 'Approved', LaporanSorter.id_batch), else_=None))).label('total_kerja'),
@@ -1797,7 +1478,6 @@ def halaman_performa():
      .outerjoin(DetailSortiran, LaporanSorter.id == DetailSortiran.id_sorter)\
      .group_by(LaporanSorter.nama_petugas).all()
 
-    # 3. Hitung Performa Presser (Hanya yg Approved)
     presser_stats = db.session.query(
         LaporanPresser.nama_petugas,
         func.count(func.distinct(case((Batch.status_presser == 'Approved', LaporanPresser.id_batch), else_=None))).label('total_kerja'),
@@ -1807,7 +1487,6 @@ def halaman_performa():
      .outerjoin(DetailPresser, LaporanPresser.id == DetailPresser.id_presser)\
      .group_by(LaporanPresser.nama_petugas).all()
 
-    # 4. AMBIL DATA LIVE TRACKING SEMUA BATCH
     semua_batch = Batch.query.order_by(Batch.tanggal.desc()).all()
     tracking_data = []
 
@@ -1839,7 +1518,6 @@ def halaman_performa():
             'prs_waktu': format_waktu(prs.waktu_submit) if prs else '-'
         })
 
-    # 5. AMBIL DATA BUKU HITAM (BARIS INI YANG SEBELUMNYA HILANG)
     riwayat_hapus = RiwayatHapus.query.order_by(RiwayatHapus.waktu_hapus.desc()).all()
 
     return render_template('performa.html', 
@@ -1850,12 +1528,8 @@ def halaman_performa():
                            riwayat_hapus=riwayat_hapus,
                            nama_admin=session.get('petugas_nama'))
 
-# =====================================================
-# RUTE WEB: SUPER ADMIN (HAPUS BATCH TOTAL)
-# =====================================================
 @app.route('/superadmin/hapus_batch/<id_batch>', methods=['POST'])
 def superadmin_hapus_batch(id_batch):
-    # 1. Proteksi Ekstra
     if session.get('petugas_nama') != 'Super Admin':
         return "Akses Ditolak: Hanya Super Admin yang dapat menghapus data.", 403
 
@@ -1863,12 +1537,10 @@ def superadmin_hapus_batch(id_batch):
     if not batch:
         return redirect(url_for('halaman_performa'))
 
-    # MENANGKAP ALASAN DARI FORM HTML
     alasan = request.form.get('alasan_hapus', '').strip()
     if not alasan:
         alasan = "Dihapus tanpa alasan spesifik."
 
-    # --- CATAT KE BUKU HITAM SEBELUM DATA DIMUSNAHKAN ---
     log_hapus = RiwayatHapus(
         id_batch=id_batch,
         aktor=session.get('petugas_nama'),
@@ -1876,7 +1548,6 @@ def superadmin_hapus_batch(id_batch):
     )
     db.session.add(log_hapus)
 
-    # 2. HAPUS FILE FISIK DARI TABEL 'FotoDokumentasi' (Foto Umum)
     fotos_umum = FotoDokumentasi.query.filter_by(id_batch=id_batch).all()
     for f in fotos_umum:
         file_path = os.path.join(app.config['UPLOAD_FOLDER'], os.path.basename(f.path_foto))
@@ -1884,7 +1555,6 @@ def superadmin_hapus_batch(id_batch):
             os.remove(file_path)
     FotoDokumentasi.query.filter_by(id_batch=id_batch).delete()
 
-    # 3. HAPUS FILE FISIK DARI TABEL 'FotoKategori' (Kelas Sorter)
     sorter = LaporanSorter.query.filter_by(id_batch=id_batch).first()
     if sorter:
         details_s = DetailSortiran.query.filter_by(id_sorter=sorter.id).all()
@@ -1897,7 +1567,6 @@ def superadmin_hapus_batch(id_batch):
             FotoKategori.query.filter_by(jenis='sorter', id_detail=ds.id).delete()
         DetailSortiran.query.filter_by(id_sorter=sorter.id).delete()
 
-    # 4. HAPUS FILE FISIK DARI TABEL 'FotoKategori' (Kelas Presser)
     presser = LaporanPresser.query.filter_by(id_batch=id_batch).first()
     if presser:
         details_p = DetailPresser.query.filter_by(id_presser=presser.id).all()
@@ -1910,7 +1579,6 @@ def superadmin_hapus_batch(id_batch):
             FotoKategori.query.filter_by(jenis='presser', id_detail=dp.id).delete()
         DetailPresser.query.filter_by(id_presser=presser.id).delete()
 
-    # 5. HAPUS BATCH & SIMPAN LOG
     db.session.delete(batch)
     db.session.commit()
 
@@ -1935,7 +1603,6 @@ def halaman_gudang():
     kategori_terjual = {}
     kategori_sorter = {} 
     
-    # Gunakan KAMUS_KATEGORI untuk menerjemahkan ke bahasa Inggris
     semua_kategori = KategoriSampah.query.all()
     for k in semua_kategori:
         nama_inggris = KAMUS_KATEGORI.get(k.nama_kategori, k.nama_kategori)
@@ -1943,7 +1610,6 @@ def halaman_gudang():
         kategori_terjual[nama_inggris] = 0
         kategori_sorter[nama_inggris] = 0 
 
-    # 1. LOGIKA GUDANG BARANG JADI (BALES/PRESSER)
     for b in batches:
         kol = LaporanKolektor.query.filter_by(id_batch=b.id_batch).first()
         sor = LaporanSorter.query.filter_by(id_batch=b.id_batch).first()
@@ -1952,7 +1618,8 @@ def halaman_gudang():
         if prs and not kol and not sor:
             gudang_info = DataGudang.query.filter_by(id_batch=b.id_batch).first()
             status_stok = gudang_info.status_stok if gudang_info else 'Di Gudang'
-            pembeli = gudang_info.pembeli if gudang_info else '-'
+            pembeli = gudang_info.pembeli if gudang_info and gudang_info.pembeli else '-'
+            catatan_jual = gudang_info.catatan_jual if gudang_info and gudang_info.catatan_jual else '-'
             tgl_keluar = (gudang_info.tanggal_keluar + timedelta(hours=7)).strftime('%d-%m-%Y') if gudang_info and gudang_info.tanggal_keluar else '-'
             
             berat_total_batch = 0
@@ -1983,12 +1650,12 @@ def halaman_gudang():
                 'berat_total': berat_total_batch,
                 'status_stok': status_stok,
                 'pembeli': pembeli,
+                'catatan_jual': catatan_jual, 
                 'tanggal_keluar': tgl_keluar
             })
             
     list_gudang.sort(key=lambda x: x['tanggal_press'], reverse=True)
     
-    # 2. LOGIKA GUDANG SORTER (WIP)
     stok_sorter_list = []
     total_sisa_sorter_kg = 0
     
@@ -2040,6 +1707,7 @@ def jual_gudang():
     
     id_batch = request.form.get('id_batch')
     pembeli = request.form.get('pembeli')
+    catatan_jual = request.form.get('catatan_jual') 
     
     if id_batch and pembeli:
         gudang = DataGudang.query.filter_by(id_batch=id_batch).first()
@@ -2049,16 +1717,19 @@ def jual_gudang():
             
         gudang.status_stok = 'Terjual'
         gudang.pembeli = pembeli
+        gudang.catatan_jual = catatan_jual 
         gudang.tanggal_keluar = datetime.utcnow()
         
         log = LogRiwayat(
             id_batch=id_batch,
             aktor=session.get('petugas_nama'),
             aksi="Sold (Out)",
-            catatan=f"Bale has been sold and handed over to: {pembeli}"
+            catatan=f"Bale has been sold to: {pembeli}. Note: {catatan_jual}"
         )
         db.session.add(log)
         db.session.commit()
+        
+        flash(f"✅ Berhasil: Karung Bal {id_batch} telah laku terjual kepada {pembeli}!", "success")
         
     return redirect('/gudang')
 
@@ -2074,6 +1745,7 @@ def batal_jual_gudang():
         if gudang and gudang.status_stok == 'Terjual':
             gudang.status_stok = 'Di Gudang'
             gudang.pembeli = None
+            gudang.catatan_jual = None
             gudang.tanggal_keluar = None
             
             log = LogRiwayat(
@@ -2085,6 +1757,8 @@ def batal_jual_gudang():
             db.session.add(log)
             db.session.commit()
             
+            flash(f"⚠️ Dibatalkan: Penjualan {id_batch} ditarik kembali ke stok Gudang.", "warning")
+            
     return redirect('/gudang')
 
 @app.route('/export_csv_gudang')
@@ -2095,9 +1769,6 @@ def export_csv_gudang():
     si = StringIO()
     cw = csv.writer(si)
     
-    # =========================================================
-    # BAGIAN 1: TABEL INVENTARIS SORTER (WORK IN PROGRESS)
-    # =========================================================
     cw.writerow(['--- SORTER INVENTORY (WORK IN PROGRESS) ---'])
     cw.writerow(['Material_Category', 'Total_Sorted_In_(Kg)', 'Total_Pressed_Out_(Kg)', 'Remaining_Stock_(Kg)'])
     
@@ -2117,20 +1788,15 @@ def export_csv_gudang():
         if sisa < 0: 
             sisa = 0 
             
-        # Hanya masukkan ke CSV jika ada pergerakan data (tidak nol semua)
         if total_in > 0 or total_out > 0:
             nama_inggris = KAMUS_KATEGORI.get(kat.nama_kategori, kat.nama_kategori)
             cw.writerow([nama_inggris, round(total_in, 2), round(total_out, 2), round(sisa, 2)])
             
-    # Beri jarak 2 baris kosong agar rapi di Excel
     cw.writerow([])
     cw.writerow([])
 
-    # =========================================================
-    # BAGIAN 2: TABEL INVENTARIS KARUNG PRES (FINISHED GOODS)
-    # =========================================================
     cw.writerow(['--- PRESSER INVENTORY (FINISHED GOODS) ---'])
-    header_press = ['Bale_Code', 'Press_Finished_Date', 'Material_Details', 'Total_Weight_(Kg)', 'Warehouse_Status', 'Buyer_Name', 'Release_Date_Sold']
+    header_press = ['Bale_Code', 'Press_Finished_Date', 'Material_Details', 'Total_Weight_(Kg)', 'Warehouse_Status', 'Buyer_Name', 'Sale_Note', 'Release_Date_Sold']
     cw.writerow(header_press)
     
     batches = Batch.query.filter_by(status='Disetujui').order_by(Batch.tanggal.desc()).all()
@@ -2140,12 +1806,12 @@ def export_csv_gudang():
         sor = LaporanSorter.query.filter_by(id_batch=b.id_batch).first()
         prs = LaporanPresser.query.filter_by(id_batch=b.id_batch).first()
         
-        # Pastikan ini hanya Karung Pres (Batch Independen)
         if prs and not kol and not sor:
             gudang_info = DataGudang.query.filter_by(id_batch=b.id_batch).first()
             status_stok = gudang_info.status_stok if gudang_info else 'Di Gudang'
             status_stok_en = 'In Warehouse' if status_stok == 'Di Gudang' else 'Sold'
             pembeli = gudang_info.pembeli if gudang_info and gudang_info.pembeli else '-'
+            catatan_jual = gudang_info.catatan_jual if gudang_info and gudang_info.catatan_jual else '-'
             
             tgl_keluar = '-'
             if gudang_info and gudang_info.tanggal_keluar:
@@ -2168,6 +1834,7 @@ def export_csv_gudang():
                 berat_total,
                 status_stok_en,
                 pembeli,
+                catatan_jual,
                 tgl_keluar
             ]
             cw.writerow(row)
@@ -2176,25 +1843,16 @@ def export_csv_gudang():
     output.headers["Content-Disposition"] = "attachment; filename=Seribu_Biru_Full_Inventory.csv"
     return output
 
-# =====================================================
-# RUTE WEB: SUPER ADMIN (BERSIHKAN STORAGE FOTO > 30 HARI)
-# =====================================================
 @app.route('/superadmin/bersihkan_storage', methods=['POST'])
 def bersihkan_storage():
-    # Proteksi keamanan
     if session.get('petugas_nama') != 'Super Admin':
         return redirect('/')
 
-    # Hitung mundur 30 hari dari hari ini
     batas_waktu = datetime.utcnow().date() - timedelta(days=1)
-    
-    # Cari semua batch yang usianya LEBIH TUA dari 30 hari
     batches_lama = Batch.query.filter(Batch.tanggal < batas_waktu).all()
-
     jumlah_file_terhapus = 0
 
     for b in batches_lama:
-        # 1. Hapus Foto Umum (Kolektor, dll)
         fotos_umum = FotoDokumentasi.query.filter_by(id_batch=b.id_batch).all()
         for f in fotos_umum:
             path = os.path.join(app.config['UPLOAD_FOLDER'], os.path.basename(f.path_foto))
@@ -2203,7 +1861,6 @@ def bersihkan_storage():
                 jumlah_file_terhapus += 1
         FotoDokumentasi.query.filter_by(id_batch=b.id_batch).delete()
 
-        # 2. Hapus Foto Kategori (Sorter)
         sorter = LaporanSorter.query.filter_by(id_batch=b.id_batch).first()
         if sorter:
             details_s = DetailSortiran.query.filter_by(id_sorter=sorter.id).all()
@@ -2216,7 +1873,6 @@ def bersihkan_storage():
                         jumlah_file_terhapus += 1
                 FotoKategori.query.filter_by(jenis='sorter', id_detail=ds.id).delete()
 
-        # 3. Hapus Foto Kategori (Presser)
         presser = LaporanPresser.query.filter_by(id_batch=b.id_batch).first()
         if presser:
             details_p = DetailPresser.query.filter_by(id_presser=presser.id).all()
@@ -2231,7 +1887,6 @@ def bersihkan_storage():
 
     db.session.commit()
 
-    # Tambah catatan ke Buku Hitam agar aksinya terekam
     if jumlah_file_terhapus > 0:
         log_hapus = RiwayatHapus(
             id_batch="AUTO-CLEANUP SERVER",
