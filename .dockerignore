@@ -1,0 +1,10 @@
+# Abaikan folder dan database lokal
+instance/
+pelaporan.db
+static/uploads/
+
+# Abaikan sistem Git dan file memori Python
+.git
+.gitignore
+__pycache__
+*.pyc
